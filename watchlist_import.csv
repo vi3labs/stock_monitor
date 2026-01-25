@@ -1,0 +1,82 @@
+Ticker,Company Name,Sector,Category,Status,Sentiment,Price When Added,Date Added,TradingView
+GOOGL,Alphabet Inc.,Tech,"Large Cap, AI",Watching,Neutral,327.93,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-GOOGL/
+AMZN,Amazon.com Inc.,Tech,"Large Cap, AI",Watching,Neutral,239.16,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-AMZN/
+NVDA,NVIDIA Corporation,Tech,"Large Cap, AI",Watching,Neutral,187.67,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-NVDA/
+INTC,Intel Corporation,Tech,Large Cap,Watching,Neutral,45.07,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-INTC/
+MU,Micron Technology,Tech,Large Cap,Watching,Neutral,399.65,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-MU/
+TSM,Taiwan Semiconductor,Tech,Large Cap,Watching,Neutral,334.87,2026-01-24,https://www.tradingview.com/symbols/TSM/
+MRVL,Marvell Technology,Tech,AI,Watching,Neutral,80.23,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-MRVL/
+CRM,Salesforce Inc.,Tech,"Large Cap, AI",Watching,Neutral,228.05,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-CRM/
+ASML,ASML Holding N.V.,Semiconductors,Large Cap,Watching,Neutral,1389.04,2026-01-24,https://www.tradingview.com/symbols/ASML/
+AMAT,Applied Materials,Semiconductors,Large Cap,Watching,Neutral,322.38,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-AMAT/
+LRCX,Lam Research,Semiconductors,Large Cap,Watching,Neutral,217.94,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-LRCX/
+APH,Amphenol Corporation,Semiconductors,,Watching,Neutral,150.99,2026-01-24,https://www.tradingview.com/symbols/APH/
+RMBS,Rambus Inc.,Semiconductors,,Watching,Neutral,115.31,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-RMBS/
+SIMO,Silicon Motion,Semiconductors,Small Cap,Watching,Neutral,112.93,2026-01-24,https://www.tradingview.com/symbols/SIMO/
+TSEM,Tower Semiconductor,Semiconductors,,Watching,Neutral,128.62,2026-01-24,https://www.tradingview.com/symbols/TSEM/
+STX,Seagate Technology,Semiconductors,,Watching,Neutral,346.10,2026-01-24,https://www.tradingview.com/symbols/STX/
+SNDK,SanDisk Corporation,Semiconductors,,Watching,Neutral,473.83,2026-01-24,https://www.tradingview.com/symbols/SNDK/
+WDC,Western Digital,Semiconductors,,Watching,Neutral,236.39,2026-01-24,https://www.tradingview.com/symbols/WDC/
+PSTG,Pure Storage,Semiconductors,,Watching,Neutral,69.75,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-PSTG/
+NTAP,NetApp Inc.,Semiconductors,,Watching,Neutral,97.42,2026-01-24,https://www.tradingview.com/symbols/NTAP/
+RTX,RTX Corporation,Defense,Large Cap,Watching,Neutral,195.93,2026-01-24,https://www.tradingview.com/symbols/RTX/
+HII,Huntington Ingalls,Defense,,Watching,Neutral,418.58,2026-01-24,https://www.tradingview.com/symbols/HII/
+LDOS,Leidos Holdings,Defense,,Watching,Neutral,191.23,2026-01-24,https://www.tradingview.com/symbols/LDOS/
+KTOS,Kratos Defense,Defense,Small Cap,Watching,Neutral,110.39,2026-01-24,https://www.tradingview.com/symbols/KTOS/
+HEI,HEICO Corporation,Defense,,Watching,Neutral,334.41,2026-01-24,https://www.tradingview.com/symbols/HEI/
+TDY,Teledyne Technologies,Defense,,Watching,Neutral,610.66,2026-01-24,https://www.tradingview.com/symbols/TDY/
+MOG-A,Moog Inc.,Defense,,Watching,Neutral,291.59,2026-01-24,https://www.tradingview.com/symbols/MOG-A/
+AVAV,AeroVironment,Defense,,Watching,Neutral,307.75,2026-01-24,https://www.tradingview.com/symbols/AVAV/
+BAESY,BAE Systems,Defense,Large Cap,Watching,Neutral,111.16,2026-01-24,https://www.tradingview.com/symbols/BAESY/
+PKE,Park Aerospace,Defense,Small Cap,Watching,Neutral,24.41,2026-01-24,https://www.tradingview.com/symbols/PKE/
+RKLB,Rocket Lab,Space,"Small Cap, Speculative",Watching,Neutral,88.90,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-RKLB/
+PL,Planet Labs,Space,"Small Cap, Speculative",Watching,Neutral,26.94,2026-01-24,https://www.tradingview.com/symbols/PL/
+ASTS,AST SpaceMobile,Space,"Small Cap, Speculative",Watching,Neutral,113.57,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-ASTS/
+LUNR,Intuitive Machines,Space,"Small Cap, Speculative",Watching,Neutral,20.03,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-LUNR/
+IRDM,Iridium Communications,Space,,Watching,Neutral,21.77,2026-01-24,https://www.tradingview.com/symbols/IRDM/
+GSAT,Globalstar,Space,Small Cap,Watching,Neutral,64.97,2026-01-24,https://www.tradingview.com/symbols/GSAT/
+VSAT,Viasat Inc.,Space,,Watching,Neutral,43.28,2026-01-24,https://www.tradingview.com/symbols/VSAT/
+BKSY,BlackSky Technology,Space,"Small Cap, Speculative",Watching,Neutral,27.08,2026-01-24,https://www.tradingview.com/symbols/BKSY/
+MNTS,Momentus Inc.,Space,"Small Cap, Speculative",Watching,Neutral,8.04,2026-01-24,https://www.tradingview.com/symbols/MNTS/
+HAL,Halliburton,Energy,"Oil & Gas, Cyclical",Watching,Neutral,33.95,2026-01-24,https://www.tradingview.com/symbols/HAL/
+BKR,Baker Hughes,Energy,"Oil & Gas, Cyclical",Watching,Neutral,53.92,2026-01-24,https://www.tradingview.com/symbols/BKR/
+CVE,Cenovus Energy,Energy,"Oil & Gas, Cyclical",Watching,Neutral,18.77,2026-01-24,https://www.tradingview.com/symbols/CVE/
+VLO,Valero Energy,Energy,"Oil & Gas, Cyclical",Watching,Neutral,187.09,2026-01-24,https://www.tradingview.com/symbols/VLO/
+FRO,Frontline,Energy,"Cyclical, Dividend",Watching,Neutral,26.06,2026-01-24,https://www.tradingview.com/symbols/FRO/
+STNG,Scorpio Tankers,Energy,"Cyclical, Dividend",Watching,Neutral,58.53,2026-01-24,https://www.tradingview.com/symbols/STNG/
+NAT,Nordic American Tankers,Energy,"Cyclical, Dividend",Watching,Neutral,4.06,2026-01-24,https://www.tradingview.com/symbols/NAT/
+LEU,Centrus Energy,Energy,Nuclear,Watching,Neutral,296.19,2026-01-24,https://www.tradingview.com/symbols/LEU/
+SMR,NuScale Power,Energy,"Nuclear, Speculative",Watching,Neutral,19.77,2026-01-24,https://www.tradingview.com/symbols/SMR/
+URAN,Themes Uranium ETF,Energy,Nuclear,Watching,Neutral,51.02,2026-01-24,https://www.tradingview.com/symbols/URAN/
+AES,AES Corporation,Energy,,Watching,Neutral,14.25,2026-01-24,https://www.tradingview.com/symbols/AES/
+EOSE,Eos Energy,Energy,Speculative,Watching,Neutral,17.11,2026-01-24,https://www.tradingview.com/symbols/EOSE/
+CF,CF Industries,Energy,,Watching,Neutral,92.38,2026-01-24,https://www.tradingview.com/symbols/CF/
+TE,T1 Energy,Energy,Speculative,Watching,Neutral,8.50,2026-01-24,https://www.tradingview.com/symbols/TE/
+COIN,Coinbase Global,Crypto,Large Cap,Watching,Neutral,216.95,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-COIN/
+MSTR,MicroStrategy,Crypto,,Watching,Neutral,163.11,2026-01-24,https://www.tradingview.com/symbols/MSTR/
+CIFR,Cipher Mining,Crypto,"Small Cap, Speculative",Watching,Neutral,17.57,2026-01-24,https://www.tradingview.com/symbols/CIFR/
+BMNR,Bitmine Immersion,Crypto,"Small Cap, Speculative",Watching,Neutral,28.80,2026-01-24,https://www.tradingview.com/symbols/BMNR/
+IREN,IREN Limited,Crypto,Small Cap,Watching,Neutral,56.68,2026-01-24,https://www.tradingview.com/symbols/IREN/
+IBIT,iShares Bitcoin Trust,Crypto,,Watching,Neutral,50.70,2026-01-24,https://www.tradingview.com/symbols/IBIT/
+FETH,Fidelity Ethereum,Crypto,,Watching,Neutral,29.28,2026-01-24,https://www.tradingview.com/symbols/FETH/
+ETHA,iShares Ethereum Trust,Crypto,,Watching,Neutral,22.20,2026-01-24,https://www.tradingview.com/symbols/ETHA/
+BTC-USD,Bitcoin USD,Crypto,,Watching,Neutral,89552.88,2026-01-24,https://www.tradingview.com/symbols/BTCUSD/
+ETH-USD,Ethereum USD,Crypto,,Watching,Neutral,2955.27,2026-01-24,https://www.tradingview.com/symbols/ETHUSD/
+LINK-USD,Chainlink USD,Crypto,,Watching,Neutral,12.21,2026-01-24,https://www.tradingview.com/symbols/LINKUSD/
+KRKNF,Kraken Robotics,Tech,"Robotics, Small Cap",Watching,Neutral,6.07,2026-01-24,https://www.tradingview.com/symbols/KRKNF/
+SSYS,Stratasys,Tech,Robotics,Watching,Neutral,11.06,2026-01-24,https://www.tradingview.com/symbols/SSYS/
+OUST,Ouster,Tech,"Robotics, Small Cap",Watching,Neutral,24.84,2026-01-24,https://www.tradingview.com/symbols/OUST/
+LASR,nLIGHT Inc.,Tech,Small Cap,Watching,Neutral,43.93,2026-01-24,https://www.tradingview.com/symbols/LASR/
+LPTH,LightPath Technologies,Tech,Small Cap,Watching,Neutral,12.44,2026-01-24,https://www.tradingview.com/symbols/LPTH/
+OSS,One Stop Systems,Tech,Small Cap,Watching,Neutral,10.60,2026-01-24,https://www.tradingview.com/symbols/OSS/
+ONDS,Ondas Inc.,Tech,Small Cap,Watching,Neutral,12.17,2026-01-24,https://www.tradingview.com/symbols/ONDS/
+PLTR,Palantir Technologies,Tech,AI,Watching,Neutral,169.60,2026-01-24,https://www.tradingview.com/symbols/NASDAQ-PLTR/
+PRME,Prime Medicine,Healthcare,Speculative,Watching,Neutral,4.43,2026-01-24,https://www.tradingview.com/symbols/PRME/
+JEPI,JPMorgan Equity Premium Income,ETF,Dividend,Watching,Neutral,58.38,2026-01-24,https://www.tradingview.com/symbols/JEPI/
+JEPQ,JPMorgan Nasdaq Equity Premium,ETF,Dividend,Watching,Neutral,59.22,2026-01-24,https://www.tradingview.com/symbols/JEPQ/
+SCHD,Schwab U.S. Dividend ETF,ETF,Dividend,Watching,Neutral,29.14,2026-01-24,https://www.tradingview.com/symbols/SCHD/
+RIME,Algorhythm Holdings,Tech,"Small Cap, Speculative",Watching,Neutral,0.98,2026-01-24,https://www.tradingview.com/symbols/RIME/
+SBET,SharpLink Gaming,Tech,"Small Cap, Speculative",Watching,Neutral,9.75,2026-01-24,https://www.tradingview.com/symbols/SBET/
+UAMY,United States Antimony,Energy,"Small Cap, Speculative",Watching,Neutral,10.85,2026-01-24,https://www.tradingview.com/symbols/UAMY/
+VOYG,Voyager Technologies,Space,"Small Cap, Speculative",Watching,Neutral,37.09,2026-01-24,https://www.tradingview.com/symbols/VOYG/
+KDEF,PLUS Korea Defense,Defense,"Small Cap, Speculative",Watching,Neutral,56.58,2026-01-24,https://www.tradingview.com/symbols/KDEF/
