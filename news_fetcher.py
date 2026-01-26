@@ -4,6 +4,7 @@ News Fetcher Module
 Fetches stock news from free sources including Yahoo Finance and RSS feeds.
 """
 
+import os
 import requests
 from bs4 import BeautifulSoup
 import feedparser
@@ -267,6 +268,118 @@ class NewsFetcher:
         return significant
 
 
+class GrokNewsFetcher:
+    """
+    Fetches real-time market sentiment and news from Grok (xAI) with X integration.
+    Uses OpenAI-compatible API.
+    """
+
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key or os.environ.get('XAI_API_KEY')
+        self.base_url = "https://api.x.ai/v1"
+        self.model = "grok-3-latest"
+
+        if not self.api_key:
+            logger.warning("XAI_API_KEY not set - Grok features disabled")
+
+    def _query_grok(self, prompt: str, max_tokens: int = 500) -> Optional[str]:
+        """Query Grok API using requests (OpenAI-compatible endpoint)."""
+        if not self.api_key:
+            return None
+
+        try:
+            response = requests.post(
+                f"{self.base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": self.model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": max_tokens,
+                    "temperature": 0.3
+                },
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                return response.json()['choices'][0]['message']['content']
+            else:
+                logger.warning(f"Grok API error: {response.status_code} - {response.text}")
+
+        except Exception as e:
+            logger.warning(f"Error querying Grok: {e}")
+
+        return None
+
+    def get_market_sentiment(self) -> Optional[dict]:
+        """Get real-time market sentiment summary from X/social data."""
+        prompt = """Based on current X/Twitter discussions and market sentiment, provide a brief summary:
+
+1. Overall market mood (bullish/bearish/mixed)
+2. Top 3-5 trending stock tickers being discussed
+3. Any breaking news or catalysts moving markets
+4. Key sentiment drivers
+
+Keep it concise - bullet points preferred. Focus on actionable info."""
+
+        response = self._query_grok(prompt, max_tokens=400)
+
+        if response:
+            return {
+                'source': 'Grok/X',
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                'content': response
+            }
+        return None
+
+    def get_stock_buzz(self, symbols: List[str]) -> Optional[dict]:
+        """Get X buzz/sentiment for specific stocks."""
+        symbols_str = ', '.join(symbols[:10])  # Limit to 10 symbols
+
+        prompt = f"""For these stocks: {symbols_str}
+
+Summarize what X/Twitter is saying about each (if discussed):
+- Sentiment (bullish/bearish/neutral)
+- Key topics or news being discussed
+- Notable accounts or influencers mentioning them
+
+Skip stocks with no significant discussion. Be concise."""
+
+        response = self._query_grok(prompt, max_tokens=600)
+
+        if response:
+            return {
+                'source': 'Grok/X',
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                'symbols': symbols,
+                'content': response
+            }
+        return None
+
+    def get_premarket_movers_sentiment(self) -> Optional[dict]:
+        """Get sentiment on pre-market movers."""
+        prompt = """What stocks are moving in pre-market trading right now according to X discussions?
+
+List top movers with:
+- Ticker and direction (up/down)
+- Why it's moving (news, earnings, etc.)
+- X sentiment on the move
+
+Focus on significant moves (>3%) with social buzz."""
+
+        response = self._query_grok(prompt, max_tokens=500)
+
+        if response:
+            return {
+                'source': 'Grok/X',
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                'content': response
+            }
+        return None
+
+
 class EarningsNewsFetcher:
     """Fetches earnings-related news and analysis."""
     
@@ -352,3 +465,13 @@ if __name__ == "__main__":
     market_news = fetcher.get_market_news()
     for item in market_news:
         print(f"  - {item['title'][:60]}...")
+
+    print("\nTesting Grok market sentiment...")
+    grok = GrokNewsFetcher()
+    if grok.api_key:
+        sentiment = grok.get_market_sentiment()
+        if sentiment:
+            print(f"  Grok sentiment ({sentiment['timestamp']}):")
+            print(f"  {sentiment['content'][:200]}...")
+    else:
+        print("  Skipped - XAI_API_KEY not set")
