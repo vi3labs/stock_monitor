@@ -11,7 +11,8 @@ venv/
 # Secrets & Config
 config.yaml
 .env
-*.env
+!.env.example
+!config.yaml.example
 
 # Logs
 *.log

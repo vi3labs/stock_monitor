@@ -11,11 +11,26 @@ import requests
 from typing import List, Dict, Optional
 import logging
 
+# Load .env file if python-dotenv is available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed, rely on environment variables
+
 logger = logging.getLogger(__name__)
 
 # Notion API configuration
-NOTION_TOKEN = os.environ.get("NOTION_TOKEN", "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")
-DATABASE_ID = "2f2c5966-9a07-80c8-b1cb-fc120342d72b"  # Stock Watchlist database_id
+# Set NOTION_TOKEN environment variable or create a .env file
+NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
+if not NOTION_TOKEN:
+    raise EnvironmentError(
+        "NOTION_TOKEN environment variable is required. "
+        "Set it via: export NOTION_TOKEN='ntn_your_token_here' "
+        "or add it to a .env file."
+    )
+
+DATABASE_ID = os.environ.get("NOTION_DATABASE_ID", "2f2c5966-9a07-80c8-b1cb-fc120342d72b")
 NOTION_VERSION = "2022-06-28"
 
 HEADERS = {

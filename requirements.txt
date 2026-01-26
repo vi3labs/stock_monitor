@@ -44,6 +44,8 @@ feedparser>=6.0.0         # RSS feed parsing
 # Optional: For earnings calendar
 # Note: earnings-calendar package or use yfinance built-in
 
+# Environment Variables
+python-dotenv>=1.0.0      # Load .env files
+
 # Development/Testing (optional)
 # pytest>=7.0.0
-# python-dotenv>=1.0.0

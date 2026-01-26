@@ -1,0 +1,65 @@
+# Stock Monitoring System Configuration
+# ======================================
+# Copy this file to config.yaml and fill in your values
+
+# Your Watchlist
+# Add the stock tickers you want to track
+watchlist:
+  # Major Tech
+  - AAPL    # Apple
+  - GOOGL   # Alphabet
+  - MSFT    # Microsoft
+  - NVDA    # NVIDIA
+  - AMZN    # Amazon
+
+  # Add more tickers here...
+  # - TSLA
+  # - META
+
+# Email Configuration (Gmail)
+# ----------------------------
+# 1. Enable 2-Factor Authentication on your Google account
+# 2. Generate an App Password: https://myaccount.google.com/apppasswords
+# 3. Use that 16-character password below (spaces are OK)
+email:
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+  sender_email: "your.email@gmail.com"
+  sender_password: "xxxx xxxx xxxx xxxx"  # Gmail App Password
+  recipient_email: "your.email@gmail.com"
+
+# Schedule Configuration (EST timezone)
+schedule:
+  timezone: "America/New_York"
+  premarket_time: "06:30"    # 6:30 AM EST
+  postmarket_time: "16:30"   # 4:30 PM EST
+  weekly_day: "saturday"
+  weekly_time: "09:00"       # 9:00 AM EST on Saturday
+
+# Report Settings
+report:
+  top_movers_count: 10        # Show top N gainers/losers
+  news_per_stock: 3           # Max news items per stock
+  include_premarket: true
+  include_afterhours: true
+  include_earnings: true
+  include_dividends: true
+  include_fda_calendar: true  # For biotech stocks
+
+# Data Source Settings
+data:
+  price_source: "yfinance"
+  news_sources:
+    - "yahoo_finance"
+    - "finviz"
+  cache_duration_minutes: 5
+
+# Thresholds for alerts
+alerts:
+  big_mover_threshold: 3.0    # Flag stocks moving more than 3%
+  volume_spike_threshold: 2.0 # Flag when volume is 2x average
+
+# Logging
+logging:
+  level: "INFO"
+  file: "stock_monitor.log"

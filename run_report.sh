@@ -8,6 +8,11 @@ LOG_FILE="$SCRIPT_DIR/cron.log"
 
 cd "$SCRIPT_DIR"
 
+# Load environment variables
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    export $(grep -v '^#' "$SCRIPT_DIR/.env" | xargs)
+fi
+
 echo "========================================" >> "$LOG_FILE"
 echo "$(date): Running $1 report" >> "$LOG_FILE"
 echo "========================================" >> "$LOG_FILE"
