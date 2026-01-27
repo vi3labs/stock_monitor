@@ -14,6 +14,7 @@ import logging
 import time
 import re
 from urllib.parse import quote
+from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
 
@@ -222,19 +223,19 @@ class NewsFetcher:
         Get general market news.
         """
         news_items = []
-        
+
         try:
             # Yahoo Finance market news RSS
             url = "https://feeds.finance.yahoo.com/rss/2.0/headline?s=^GSPC&region=US&lang=en-US"
             feed = feedparser.parse(url)
-            
+
             for entry in feed.entries[:5]:
                 published = entry.get('published_parsed')
                 if published:
                     pub_date = datetime(*published[:6])
                 else:
                     pub_date = datetime.now()
-                
+
                 news_items.append({
                     'title': entry.get('title', ''),
                     'summary': entry.get('summary', '')[:200],
@@ -242,11 +243,90 @@ class NewsFetcher:
                     'source': 'Yahoo Finance',
                     'published': pub_date.strftime('%Y-%m-%d %H:%M'),
                 })
-                
+
         except Exception as e:
             logger.warning(f"Error fetching market news: {e}")
-        
+
         return news_items
+
+    def get_world_us_news(self, max_items: int = 6) -> List[dict]:
+        """
+        Get world and US headlines from Google News RSS.
+        Returns a mix of US and world news.
+        """
+        news_items = []
+
+        # Google News topic RSS feeds
+        feeds = [
+            ("https://news.google.com/rss/headlines/section/topic/NATION?hl=en-US&gl=US&ceid=US:en", "US News"),
+            ("https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-US&gl=US&ceid=US:en", "World"),
+        ]
+
+        items_per_feed = max_items // 2
+
+        for url, category in feeds:
+            try:
+                # Fetch with proper headers (Google blocks requests without User-Agent)
+                response = self.session.get(url, timeout=10)
+                if response.status_code != 200:
+                    logger.warning(f"Failed to fetch {category} news: HTTP {response.status_code}")
+                    continue
+
+                feed = feedparser.parse(response.text)
+
+                for entry in feed.entries[:items_per_feed]:
+                    published = entry.get('published_parsed')
+                    if published:
+                        pub_date = datetime(*published[:6])
+                    else:
+                        pub_date = datetime.now()
+
+                    # Clean up title (Google News adds source at end)
+                    title = entry.get('title', '')
+                    if ' - ' in title:
+                        title = title.rsplit(' - ', 1)[0]
+
+                    news_items.append({
+                        'title': title,
+                        'summary': '',
+                        'link': entry.get('link', ''),
+                        'source': category,
+                        'published': pub_date.strftime('%Y-%m-%d %H:%M'),
+                        'published_datetime': pub_date,
+                    })
+
+            except Exception as e:
+                logger.warning(f"Error fetching {category} news: {e}")
+
+            time.sleep(0.3)  # Rate limiting between feeds
+
+        # Deduplicate using fuzzy matching
+        unique_news = self._deduplicate_news(news_items)
+
+        return unique_news[:max_items]
+
+    def _deduplicate_news(self, news_items: List[dict], threshold: float = 0.85) -> List[dict]:
+        """
+        Deduplicate news using fuzzy title matching.
+        """
+        unique = []
+
+        for item in news_items:
+            is_duplicate = False
+            item_title = item['title'].lower()
+
+            for existing in unique:
+                existing_title = existing['title'].lower()
+                similarity = SequenceMatcher(None, item_title, existing_title).ratio()
+
+                if similarity >= threshold:
+                    is_duplicate = True
+                    break
+
+            if not is_duplicate:
+                unique.append(item)
+
+        return unique
     
     def filter_significant_news(self, news_dict: Dict[str, List[dict]], 
                                  movers: List[str]) -> Dict[str, List[dict]]:

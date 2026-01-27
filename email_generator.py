@@ -175,6 +175,24 @@ class EmailGenerator:
         </tr>
 """
 
+    def _headline_item(self, title: str, source: str, link: str) -> str:
+        """Generate a headline news item (no symbol badge)."""
+        title_truncated = title[:90] + "..." if len(title) > 90 else title
+        return f"""
+        <tr>
+            <td style="padding: 0 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-bottom: 1px solid {self.c['border']};">
+                    <tr>
+                        <td style="padding: 10px 0;">
+                            <a href="{link}" style="color: {self.c['text_primary']}; font-size: 13px; text-decoration: none; line-height: 1.4;">{title_truncated}</a>
+                            <div style="color: {self.c['text_secondary']}; font-size: 11px; margin-top: 4px;">{source}</div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+"""
+
     def _summary_box(self, stats: List[tuple]) -> str:
         """Generate a summary statistics box."""
         rows = ""
@@ -221,13 +239,28 @@ class EmailGenerator:
                                    earnings: List[dict],
                                    dividends: List[dict],
                                    news: Dict[str, List[dict]],
-                                   market_news: List[dict]) -> str:
+                                   market_news: List[dict],
+                                   world_news: List[dict] = None) -> str:
         """Generate pre-market morning report."""
 
         now = datetime.now()
         date_str = now.strftime("%A, %B %d, %Y")
 
         content = self._header("📈 Pre-Market Briefing", date_str)
+
+        # World & US Headlines (NEW - first section)
+        if world_news:
+            content += self._section_title("🌍 World & US Headlines")
+            for item in world_news[:6]:
+                content += self._headline_item(item['title'], f"{item['source']} • {item['published']}", item['link'])
+            content += self._spacer(10)
+
+        # Market News (moved up)
+        if market_news:
+            content += self._section_title("📰 Market News")
+            for item in market_news[:4]:
+                content += self._headline_item(item['title'], f"{item['source']} • {item['published']}", item['link'])
+            content += self._spacer(10)
 
         # Futures
         if futures:
@@ -272,17 +305,12 @@ class EmailGenerator:
                 content += self._calendar_item(date_display, d['symbol'], yield_str)
             content += self._spacer(10)
 
-        # News
-        if market_news or news:
-            content += self._section_title("📰 Top News")
+        # Stock-specific news (moved to end)
+        if news:
+            content += self._section_title("📈 Stock News")
             news_count = 0
-
-            for item in market_news[:3]:
-                content += self._news_item("MARKET", item['title'], f"{item['source']} • {item['published']}", item['link'])
-                news_count += 1
-
             for symbol, items in news.items():
-                if news_count >= 6:
+                if news_count >= 5:
                     break
                 for item in items[:1]:
                     content += self._news_item(symbol, item['title'], f"{item['source']} • {item['published']}", item['link'])

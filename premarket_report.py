@@ -103,7 +103,12 @@ def main():
         # Fetch market news
         market_news = news_fetcher.get_market_news()
         logger.info(f"Got {len(market_news)} market news items")
-        
+
+        # Fetch world & US news
+        logger.info("Fetching world & US news...")
+        world_news = news_fetcher.get_world_us_news(max_items=6)
+        logger.info(f"Got {len(world_news)} world/US news items")
+
         # Generate email
         logger.info("Generating email...")
         html_content = email_generator.generate_premarket_report(
@@ -113,7 +118,8 @@ def main():
             earnings=earnings,
             dividends=dividends,
             news=news,
-            market_news=market_news
+            market_news=market_news,
+            world_news=world_news
         )
         
         # Save a local copy for debugging
