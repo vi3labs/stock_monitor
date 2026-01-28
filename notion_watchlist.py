@@ -8,6 +8,7 @@ Source of truth for which tickers to track.
 
 import os
 import requests
+import time
 from typing import List, Dict, Optional
 import logging
 
@@ -41,6 +42,38 @@ HEADERS = {
 
 # Active statuses - tickers with these statuses will be included in reports
 ACTIVE_STATUSES = ["Watching", "Holding"]
+
+# Retry configuration
+MAX_RETRIES = 3
+RETRY_DELAY_SECONDS = 5  # Will use exponential backoff: 5, 10, 20 seconds
+
+
+def _request_with_retry(method: str, url: str, **kwargs) -> requests.Response:
+    """
+    Make HTTP request with retry logic and exponential backoff.
+    Handles temporary network failures (DNS, connection timeouts).
+    """
+    last_error = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            if method == "POST":
+                response = requests.post(url, **kwargs)
+            elif method == "PATCH":
+                response = requests.patch(url, **kwargs)
+            else:
+                response = requests.get(url, **kwargs)
+            return response
+        except (requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout,
+                OSError) as e:
+            last_error = e
+            if attempt < MAX_RETRIES - 1:
+                delay = RETRY_DELAY_SECONDS * (2 ** attempt)
+                logger.warning(f"Network error (attempt {attempt + 1}/{MAX_RETRIES}): {e}. Retrying in {delay}s...")
+                time.sleep(delay)
+            else:
+                logger.error(f"Network error after {MAX_RETRIES} attempts: {e}")
+    raise last_error
 
 
 def get_watchlist(statuses: List[str] = None) -> List[str]:
@@ -80,7 +113,7 @@ def get_watchlist(statuses: List[str] = None) -> List[str]:
             if start_cursor:
                 payload["start_cursor"] = start_cursor
 
-            response = requests.post(url, headers=HEADERS, json=payload)
+            response = _request_with_retry("POST", url, headers=HEADERS, json=payload)
 
             if response.status_code != 200:
                 logger.error(f"Notion API error: {response.status_code} - {response.text[:200]}")
@@ -152,7 +185,7 @@ def get_watchlist_with_metadata(statuses: List[str] = None) -> List[Dict]:
             if start_cursor:
                 payload["start_cursor"] = start_cursor
 
-            response = requests.post(url, headers=HEADERS, json=payload)
+            response = _request_with_retry("POST", url, headers=HEADERS, json=payload)
 
             if response.status_code != 200:
                 logger.error(f"Notion API error: {response.status_code} - {response.text[:200]}")
@@ -243,7 +276,7 @@ def update_stock_price(page_id: str, current_price: float) -> bool:
     }
 
     try:
-        response = requests.patch(url, headers=HEADERS, json=payload)
+        response = _request_with_retry("PATCH", url, headers=HEADERS, json=payload)
         if response.status_code == 200:
             return True
         else:

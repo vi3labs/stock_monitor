@@ -5,6 +5,7 @@ Sends HTML emails via SMTP (Gmail).
 """
 
 import smtplib
+import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -14,6 +15,10 @@ import logging
 import os
 
 logger = logging.getLogger(__name__)
+
+# Retry configuration
+MAX_RETRIES = 3
+RETRY_DELAY_SECONDS = 5  # Will use exponential backoff: 5, 10, 20 seconds
 
 
 class EmailSender:
@@ -93,21 +98,39 @@ class EmailSender:
                             )
                             msg.attach(part)
             
-            # Connect and send
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.sender_email, self.sender_password)
-                server.send_message(msg)
-            
-            logger.info(f"Email sent successfully to {recipient}")
-            return True
-            
-        except smtplib.SMTPAuthenticationError as e:
-            logger.error(f"SMTP Authentication failed. Check your email credentials. Error: {e}")
+            # Connect and send with retry logic for network failures
+            last_error = None
+            for attempt in range(MAX_RETRIES):
+                try:
+                    with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                        server.starttls()
+                        server.login(self.sender_email, self.sender_password)
+                        server.send_message(msg)
+
+                    logger.info(f"Email sent successfully to {recipient}")
+                    return True
+
+                except smtplib.SMTPAuthenticationError as e:
+                    # Auth errors shouldn't be retried
+                    logger.error(f"SMTP Authentication failed. Check your email credentials. Error: {e}")
+                    return False
+                except (OSError, smtplib.SMTPServerDisconnected,
+                        smtplib.SMTPConnectError, ConnectionError) as e:
+                    # Network errors - retry with backoff
+                    last_error = e
+                    if attempt < MAX_RETRIES - 1:
+                        delay = RETRY_DELAY_SECONDS * (2 ** attempt)
+                        logger.warning(f"Network error (attempt {attempt + 1}/{MAX_RETRIES}): {e}. Retrying in {delay}s...")
+                        time.sleep(delay)
+                    else:
+                        logger.error(f"Network error after {MAX_RETRIES} attempts: {e}")
+                        return False
+                except smtplib.SMTPException as e:
+                    logger.error(f"SMTP error occurred: {e}")
+                    return False
+
             return False
-        except smtplib.SMTPException as e:
-            logger.error(f"SMTP error occurred: {e}")
-            return False
+
         except Exception as e:
             logger.error(f"Failed to send email: {e}")
             return False
