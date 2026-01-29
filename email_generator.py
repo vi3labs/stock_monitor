@@ -534,7 +534,8 @@ class EmailGenerator:
                                     postmarket_data: Dict[str, dict],
                                     news: Dict[str, List[dict]],
                                     market_news: List[dict] = None,
-                                    world_news: List[dict] = None) -> str:
+                                    world_news: List[dict] = None,
+                                    trends_data: Dict[str, dict] = None) -> str:
         """Generate post-market closing report."""
 
         now = datetime.now()
@@ -554,6 +555,12 @@ class EmailGenerator:
             content += self._section_title("📰 Market News")
             for item in market_news[:4]:
                 content += self._headline_item(item['title'], f"{item['source']} • {item['published']}", item['link'])
+            content += self._spacer(10)
+
+        # Search Trends (sentiment signal)
+        if trends_data:
+            content += self._section_title("🔍 Search Trends")
+            content += self._trends_section(trends_data)
             content += self._spacer(10)
 
         # Market indices

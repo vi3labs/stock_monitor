@@ -15,7 +15,7 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from data_fetcher import StockDataFetcher
+from data_fetcher import StockDataFetcher, TrendsFetcher
 from news_fetcher import NewsFetcher
 from email_generator import EmailGenerator
 from email_sender import EmailSenderFactory
@@ -107,6 +107,21 @@ def main():
         world_news = news_fetcher.get_world_us_news(max_items=6)
         logger.info(f"Got {len(world_news)} world/US news items")
 
+        # Fetch Google Trends data for sentiment (conservative rate limiting)
+        trends_data = {}
+        try:
+            logger.info("Fetching Google Trends data...")
+            trends_fetcher = TrendsFetcher(cache_duration_minutes=240)  # 4-hour cache
+            # Get top movers for trends
+            sorted_by_change = sorted(quotes.values(), key=lambda x: abs(x.get('change_percent', 0)), reverse=True)
+            top_movers = [s['symbol'] for s in sorted_by_change[:10]]
+            company_names = {s: quotes.get(s, {}).get('name', s) for s in top_movers}
+            trends_data = trends_fetcher.get_trends(top_movers, company_names, max_symbols=8)
+            logger.info(f"Got trends data for {len(trends_data)} symbols")
+        except Exception as e:
+            logger.warning(f"Could not fetch trends data: {e}")
+            # Continue without trends - it's optional
+
         # Generate email
         logger.info("Generating email...")
         html_content = email_generator.generate_postmarket_report(
@@ -115,7 +130,8 @@ def main():
             postmarket_data=postmarket_data,
             news=news,
             market_news=market_news,
-            world_news=world_news
+            world_news=world_news,
+            trends_data=trends_data
         )
         
         # Save a local copy for debugging
