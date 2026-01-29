@@ -44,6 +44,9 @@ feedparser>=6.0.0         # RSS feed parsing
 # Optional: For earnings calendar
 # Note: earnings-calendar package or use yfinance built-in
 
+# Google Trends for sentiment signals
+pytrends>=4.9.0           # Google Trends unofficial API
+
 # Environment Variables
 python-dotenv>=1.0.0      # Load .env files
 

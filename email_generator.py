@@ -357,6 +357,76 @@ class EmailGenerator:
         """Generate a spacer row."""
         return f'<tr><td style="height: {height}px;"></td></tr>'
 
+    def _trends_section(self, trends_data: Dict[str, dict], max_items: int = 5) -> str:
+        """
+        Generate search trends section showing Google Trends data.
+
+        Displays top movers by interest change with direction indicators.
+        """
+        if not trends_data:
+            return ""
+
+        # Sort by absolute interest change
+        sorted_trends = sorted(
+            [(symbol, data) for symbol, data in trends_data.items()],
+            key=lambda x: abs(x[1].get('interest_change', 0)),
+            reverse=True
+        )[:max_items]
+
+        if not sorted_trends:
+            return ""
+
+        # Direction emoji mapping
+        direction_icons = {
+            'surging': '🔥',
+            'rising': '📈',
+            'falling': '📉',
+            'stable': '➡️'
+        }
+
+        rows = ""
+        for symbol, data in sorted_trends:
+            direction = data.get('direction', 'stable')
+            icon = direction_icons.get(direction, '➡️')
+            change = data.get('interest_change', 0)
+            top_query = data.get('top_query', '')
+
+            # Color based on change
+            if change > 5:
+                color = self.c['green']
+            elif change < -5:
+                color = self.c['red']
+            else:
+                color = self.c['neutral']
+
+            # Format change string
+            change_str = f"+{change:.0f}%" if change > 0 else f"{change:.0f}%"
+
+            rows += f"""
+            <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid {self.c['border']};">
+                    <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                        <tr>
+                            <td width="30" style="font-size: 16px;">{icon}</td>
+                            <td style="color: {self.c['text_primary']}; font-size: 14px; font-weight: 600;">{symbol}</td>
+                            <td width="60" style="text-align: right; color: {color}; font-size: 13px; font-weight: 600;">{change_str}</td>
+                            <td width="140" style="text-align: right; color: {self.c['text_secondary']}; font-size: 11px; padding-left: 10px;">{top_query[:20] if top_query else '—'}</td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+"""
+
+        return f"""
+        <tr>
+            <td style="padding: 0 20px 10px 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: {self.c['bg_section']}; border-radius: 8px; padding: 12px;">
+                    {rows}
+                </table>
+            </td>
+        </tr>
+"""
+
     def generate_premarket_report(self,
                                    futures: Dict[str, dict],
                                    premarket_data: Dict[str, dict],
@@ -365,7 +435,8 @@ class EmailGenerator:
                                    dividends: List[dict],
                                    news: Dict[str, List[dict]],
                                    market_news: List[dict],
-                                   world_news: List[dict] = None) -> str:
+                                   world_news: List[dict] = None,
+                                   trends_data: Dict[str, dict] = None) -> str:
         """Generate pre-market morning report."""
 
         now = datetime.now()
@@ -385,6 +456,12 @@ class EmailGenerator:
             content += self._section_title("📰 Market News")
             for item in market_news[:4]:
                 content += self._headline_item(item['title'], f"{item['source']} • {item['published']}", item['link'])
+            content += self._spacer(10)
+
+        # Search Trends (new sentiment signal)
+        if trends_data:
+            content += self._section_title("🔍 Search Trends")
+            content += self._trends_section(trends_data)
             content += self._spacer(10)
 
         # Futures

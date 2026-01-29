@@ -731,6 +731,213 @@ class FuturesDataFetcher:
         return results
 
 
+class TrendsFetcher:
+    """
+    Fetches Google Trends data for stock symbols.
+
+    Provides "silent attention" signals - shows which tickers are gaining
+    or losing public search interest.
+
+    Rate limiting:
+    - Batch size: 5 symbols max per request (Google's limit)
+    - Delay: 3 seconds between batches
+    - Cache: 60 minutes (trends don't change fast)
+    """
+
+    def __init__(self, cache_duration_minutes: int = 60):
+        self._cache = {}
+        self._cache_time = {}
+        self._cache_lock = threading.Lock()
+        self.cache_duration = cache_duration_minutes
+        self._pytrends = None
+
+    def _get_pytrends(self):
+        """Lazy-load pytrends to avoid import errors if not installed."""
+        if self._pytrends is None:
+            try:
+                from pytrends.request import TrendReq
+                self._pytrends = TrendReq(hl='en-US', tz=300, timeout=(10, 25))
+            except ImportError:
+                logger.warning("pytrends not installed. Run: pip install pytrends")
+                return None
+        return self._pytrends
+
+    def _is_cache_valid(self, key: str) -> bool:
+        """Check if cached data is still valid."""
+        with self._cache_lock:
+            if key not in self._cache_time:
+                return False
+            elapsed = (datetime.now() - self._cache_time[key]).total_seconds() / 60
+            return elapsed < self.cache_duration
+
+    def _set_cache(self, key: str, value) -> None:
+        """Set cache value."""
+        with self._cache_lock:
+            self._cache[key] = value
+            self._cache_time[key] = datetime.now()
+
+    def _get_cache(self, key: str):
+        """Get cache value."""
+        with self._cache_lock:
+            return self._cache.get(key)
+
+    def get_trends(
+        self,
+        symbols: List[str],
+        company_names: Optional[Dict[str, str]] = None,
+        max_symbols: int = 30
+    ) -> Dict[str, dict]:
+        """
+        Fetch Google Trends data for stock symbols.
+
+        Args:
+            symbols: List of stock tickers
+            company_names: Optional dict mapping ticker -> company name
+            max_symbols: Maximum symbols to fetch (default 30)
+
+        Returns:
+            Dict mapping symbol to trends data:
+            {
+                "NVDA": {
+                    "interest_score": 75,      # 0-100 scale
+                    "interest_change": 15,     # % change vs avg
+                    "direction": "rising",     # rising|falling|stable
+                    "top_query": "nvidia earnings"  # related query
+                }
+            }
+        """
+        cache_key = f"trends_{len(symbols)}"
+        if self._is_cache_valid(cache_key):
+            cached = self._get_cache(cache_key)
+            if cached:
+                return cached
+
+        pytrends = self._get_pytrends()
+        if pytrends is None:
+            return {}
+
+        start_time = time.time()
+        results = {}
+
+        # Limit symbols to avoid rate limits
+        symbols_to_fetch = symbols[:max_symbols]
+        company_names = company_names or {}
+
+        # Build search terms (use "SYMBOL stock" for better results)
+        search_terms = {}
+        for symbol in symbols_to_fetch:
+            # Use company name if available for ambiguous tickers
+            if symbol in ['META', 'CAT', 'F', 'V', 'T', 'C']:
+                term = f"{company_names.get(symbol, symbol)} stock"
+            else:
+                term = f"{symbol} stock"
+            search_terms[symbol] = term
+
+        # Process in batches of 5 (Google's limit per request)
+        batch_size = 5
+        batches = [
+            list(search_terms.items())[i:i + batch_size]
+            for i in range(0, len(search_terms), batch_size)
+        ]
+
+        for batch_idx, batch in enumerate(batches):
+            try:
+                # Build keyword list for this batch
+                keywords = [term for _, term in batch]
+
+                # Build payload with 7-day timeframe
+                pytrends.build_payload(keywords, timeframe='now 7-d', geo='US')
+
+                # Get interest over time
+                interest_df = pytrends.interest_over_time()
+
+                if interest_df is not None and not interest_df.empty:
+                    # Remove 'isPartial' column if present
+                    if 'isPartial' in interest_df.columns:
+                        interest_df = interest_df.drop(columns=['isPartial'])
+
+                    for symbol, term in batch:
+                        if term in interest_df.columns:
+                            values = interest_df[term].values
+                            if len(values) > 0:
+                                # Current value is last data point
+                                current = int(values[-1])
+                                # Average is mean of all values
+                                avg = float(values.mean())
+
+                                # Calculate change vs average
+                                if avg > 0:
+                                    change = ((current - avg) / avg) * 100
+                                else:
+                                    change = 0
+
+                                # Determine direction
+                                if change > 20:
+                                    direction = "surging"
+                                elif change > 5:
+                                    direction = "rising"
+                                elif change < -5:
+                                    direction = "falling"
+                                else:
+                                    direction = "stable"
+
+                                results[symbol] = {
+                                    'interest_score': current,
+                                    'interest_change': round(change, 1),
+                                    'direction': direction,
+                                    'top_query': None  # Will try to get related queries
+                                }
+
+                # Try to get related queries for context
+                try:
+                    related = pytrends.related_queries()
+                    for symbol, term in batch:
+                        if term in related and related[term]['top'] is not None:
+                            top_queries = related[term]['top']
+                            if len(top_queries) > 0:
+                                # Get top related query (excluding the search term itself)
+                                for _, row in top_queries.head(3).iterrows():
+                                    query = row['query'].lower()
+                                    if symbol.lower() not in query and 'stock' not in query:
+                                        if symbol in results:
+                                            results[symbol]['top_query'] = row['query']
+                                        break
+                except Exception as e:
+                    logger.debug(f"Could not fetch related queries: {e}")
+
+            except Exception as e:
+                logger.warning(f"Error fetching trends batch {batch_idx + 1}: {e}")
+
+            # Delay between batches to avoid rate limits
+            if batch_idx < len(batches) - 1:
+                time.sleep(3)
+
+        elapsed = time.time() - start_time
+        logger.info(f"Fetched trends for {len(results)}/{len(symbols_to_fetch)} symbols in {elapsed:.1f}s")
+
+        self._set_cache(cache_key, results)
+        return results
+
+    def get_top_trends_movers(self, trends_data: Dict[str, dict], n: int = 5) -> List[dict]:
+        """
+        Get top trends movers sorted by absolute interest change.
+        Returns mix of rising and falling.
+        """
+        if not trends_data:
+            return []
+
+        # Convert to list with symbol included
+        items = [
+            {'symbol': symbol, **data}
+            for symbol, data in trends_data.items()
+        ]
+
+        # Sort by absolute change
+        items.sort(key=lambda x: abs(x.get('interest_change', 0)), reverse=True)
+
+        return items[:n]
+
+
 if __name__ == "__main__":
     # Test the fetcher with parallelization
     from notion_watchlist import get_watchlist

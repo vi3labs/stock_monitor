@@ -15,7 +15,7 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from data_fetcher import StockDataFetcher, FuturesDataFetcher
+from data_fetcher import StockDataFetcher, FuturesDataFetcher, TrendsFetcher
 from news_fetcher import NewsFetcher
 from email_generator import EmailGenerator
 from email_sender import EmailSenderFactory
@@ -109,6 +109,19 @@ def main():
         world_news = news_fetcher.get_world_us_news(max_items=6)
         logger.info(f"Got {len(world_news)} world/US news items")
 
+        # Fetch Google Trends data for sentiment
+        trends_data = {}
+        try:
+            logger.info("Fetching Google Trends data...")
+            trends_fetcher = TrendsFetcher(cache_duration_minutes=60)
+            # Get company names for better search results
+            company_names = {s: quotes.get(s, {}).get('name', s) for s in top_movers}
+            trends_data = trends_fetcher.get_trends(top_movers, company_names, max_symbols=15)
+            logger.info(f"Got trends data for {len(trends_data)} symbols")
+        except Exception as e:
+            logger.warning(f"Could not fetch trends data: {e}")
+            # Continue without trends - it's optional
+
         # Generate email
         logger.info("Generating email...")
         html_content = email_generator.generate_premarket_report(
@@ -119,7 +132,8 @@ def main():
             dividends=dividends,
             news=news,
             market_news=market_news,
-            world_news=world_news
+            world_news=world_news,
+            trends_data=trends_data
         )
         
         # Save a local copy for debugging
