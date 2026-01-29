@@ -8,6 +8,9 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import logging
 
+# Import sector mapping
+from notion_sync import SECTOR_MAP
+
 logger = logging.getLogger(__name__)
 
 
@@ -218,6 +221,128 @@ class EmailGenerator:
         </tr>
 """
 
+    def _sector_performance_section(self, quotes: Dict[str, dict], change_key: str = 'change_percent') -> str:
+        """Generate sector performance section with bars."""
+        # Calculate sector averages
+        sector_data = {}
+        for symbol, data in quotes.items():
+            sector = SECTOR_MAP.get(symbol, 'Other')
+            if sector not in sector_data:
+                sector_data[sector] = []
+            sector_data[sector].append(data.get(change_key, 0))
+
+        sector_avg = {k: sum(v)/len(v) for k, v in sector_data.items() if v}
+        sorted_sectors = sorted(sector_avg.items(), key=lambda x: x[1], reverse=True)
+
+        # Filter to top/bottom sectors with meaningful data
+        notable_sectors = [s for s in sorted_sectors if abs(s[1]) >= 0.1][:8]
+
+        if not notable_sectors:
+            return ""
+
+        rows = ""
+        max_abs = max(abs(s[1]) for s in notable_sectors) if notable_sectors else 1
+
+        for sector, avg in notable_sectors:
+            color = self.c['green'] if avg > 0 else self.c['red']
+            bar_width = int(min(abs(avg) / max_abs * 60, 60))  # Max 60% width
+            change_str = f"+{avg:.2f}%" if avg > 0 else f"{avg:.2f}%"
+
+            rows += f"""
+                <tr>
+                    <td style="padding: 8px 0; width: 120px;">
+                        <span style="color: {self.c['text_primary']}; font-size: 13px;">{sector}</span>
+                    </td>
+                    <td style="padding: 8px 0;">
+                        <div style="background-color: {color}30; height: 20px; width: {bar_width}%; border-radius: 4px; display: inline-block;"></div>
+                        <span style="color: {color}; font-size: 13px; font-weight: 600; margin-left: 8px;">{change_str}</span>
+                    </td>
+                </tr>
+"""
+
+        return f"""
+        <tr>
+            <td style="padding: 0 20px 20px 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: {self.c['bg_section']}; border-radius: 8px;">
+                    <tr><td style="padding: 16px;">
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                            {rows}
+                        </table>
+                    </td></tr>
+                </table>
+            </td>
+        </tr>
+"""
+
+    def _stocks_by_sector(self, quotes: Dict[str, dict], limit_per_sector: int = 3, change_key: str = 'change_percent') -> str:
+        """Generate stocks grouped by sector showing top movers."""
+        # Group stocks by sector
+        by_sector = {}
+        for symbol, data in quotes.items():
+            sector = SECTOR_MAP.get(symbol, 'Other')
+            if sector == 'Other':
+                continue  # Skip uncategorized
+            if sector not in by_sector:
+                by_sector[sector] = []
+            by_sector[sector].append(data)
+
+        # Sort each sector by absolute change and pick top movers
+        content = ""
+        sectors_shown = 0
+
+        # Sort sectors by total absolute movement
+        sector_activity = {
+            s: sum(abs(d.get(change_key, 0)) for d in stocks)
+            for s, stocks in by_sector.items()
+        }
+        sorted_sectors = sorted(sector_activity.keys(), key=lambda x: sector_activity[x], reverse=True)
+
+        for sector in sorted_sectors:
+            if sectors_shown >= 6:  # Limit to 6 sectors
+                break
+
+            stocks = by_sector[sector]
+            # Get top movers (by absolute change)
+            movers = sorted(stocks, key=lambda x: abs(x.get(change_key, 0)), reverse=True)[:limit_per_sector]
+
+            # Only show sector if it has meaningful movers
+            if not any(abs(s.get(change_key, 0)) >= 1.0 for s in movers):
+                continue
+
+            # Sector header
+            content += f"""
+        <tr>
+            <td style="padding: 12px 20px 4px 20px;">
+                <span style="color: {self.c['accent']}; font-size: 12px; font-weight: 600; text-transform: uppercase;">{sector}</span>
+            </td>
+        </tr>
+"""
+            # Stock rows
+            for stock in movers:
+                change_pct = stock.get(change_key, 0)
+                if abs(change_pct) < 0.5:
+                    continue
+                change_str, color = self._format_change(change_pct)
+                content += f"""
+        <tr>
+            <td style="padding: 0 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                    <tr>
+                        <td style="padding: 6px 0;">
+                            <span style="color: {self.c['text_primary']}; font-size: 14px; font-weight: 500;">{stock['symbol']}</span>
+                        </td>
+                        <td style="padding: 6px 0; text-align: right;">
+                            <span style="color: {color}; font-size: 14px; font-weight: 600;">{change_str}</span>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+"""
+            sectors_shown += 1
+
+        return content
+
     def _footer(self) -> str:
         """Generate footer."""
         return f"""
@@ -285,6 +410,11 @@ class EmailGenerator:
                     data.get('pre_market_change_percent', 0)
                 )
             content += self._spacer(10)
+
+        # Sector performance (using previous close data from quotes)
+        if quotes:
+            content += self._section_title("📊 Sector Performance (Prev Close)")
+            content += self._sector_performance_section(quotes)
 
         # Upcoming earnings
         if earnings:
@@ -368,6 +498,10 @@ class EmailGenerator:
             ("Avg Change", f"{avg_change:+.2f}%", self.c['green'] if avg_change > 0 else self.c['red']),
         ])
 
+        # Sector performance
+        content += self._section_title("📊 Sector Performance")
+        content += self._sector_performance_section(quotes)
+
         # Top gainers
         content += self._section_title("🚀 Top Gainers")
         for stock in gainers[:8]:
@@ -415,6 +549,13 @@ class EmailGenerator:
                         data.get('post_market_change_percent', 0)
                     )
                 content += self._spacer(10)
+
+        # Movers by sector
+        sector_content = self._stocks_by_sector(quotes)
+        if sector_content:
+            content += self._section_title("🏢 Movers by Sector")
+            content += sector_content
+            content += self._spacer(10)
 
         # Stock-specific news (like pre-market)
         if news:
@@ -465,6 +606,10 @@ class EmailGenerator:
             ("Avg Performance", f"{avg_change:+.2f}%", self.c['green'] if avg_change > 0 else self.c['red']),
         ])
 
+        # Sector performance for the week
+        content += self._section_title("📊 Sector Performance")
+        content += self._sector_performance_section(weekly_data, change_key='week_change_percent')
+
         # Top gainers
         content += self._section_title("🚀 Week's Top Gainers")
         for stock in week_gainers[:8]:
@@ -487,6 +632,13 @@ class EmailGenerator:
                 stock.get('week_change_percent', 0)
             )
         content += self._spacer(10)
+
+        # Movers by sector
+        sector_content = self._stocks_by_sector(weekly_data, change_key='week_change_percent')
+        if sector_content:
+            content += self._section_title("🏢 Movers by Sector")
+            content += sector_content
+            content += self._spacer(10)
 
         # Earnings next week
         if earnings_next_week:

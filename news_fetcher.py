@@ -33,36 +33,83 @@ class NewsFetcher:
     
     def get_yahoo_news(self, symbol: str) -> List[dict]:
         """
-        Get news from Yahoo Finance for a specific stock.
+        Get news from Yahoo Finance via yfinance API.
+        Falls back to Google News RSS if yfinance returns no results.
+
+        Note: Yahoo Finance RSS feeds are rate-limited (429 errors), so we use
+        the yfinance library which accesses the API differently.
         """
         news_items = []
-        
+
         try:
-            # Yahoo Finance news RSS feed
-            url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={symbol}&region=US&lang=en-US"
-            
-            feed = feedparser.parse(url)
-            
-            for entry in feed.entries[:self.max_news]:
-                published = entry.get('published_parsed')
-                if published:
-                    pub_date = datetime(*published[:6])
-                else:
-                    pub_date = datetime.now()
-                
-                news_items.append({
-                    'symbol': symbol,
-                    'title': entry.get('title', ''),
-                    'summary': entry.get('summary', '')[:200] + '...' if len(entry.get('summary', '')) > 200 else entry.get('summary', ''),
-                    'link': entry.get('link', ''),
-                    'source': 'Yahoo Finance',
-                    'published': pub_date.strftime('%Y-%m-%d %H:%M'),
-                    'published_datetime': pub_date,
-                })
-                
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            news = ticker.news
+
+            if news:
+                for item in news[:self.max_news]:
+                    # yfinance news structure changed - data is now nested under 'content'
+                    content = item.get('content', {})
+                    if not content:
+                        # Fallback for old structure
+                        content = item
+
+                    title = content.get('title', '')
+                    if not title:
+                        continue
+
+                    # Parse publication date
+                    pub_date_str = content.get('pubDate') or content.get('providerPublishTime')
+                    if pub_date_str:
+                        if isinstance(pub_date_str, str):
+                            try:
+                                pub_date = datetime.fromisoformat(pub_date_str.replace('Z', '+00:00'))
+                                pub_date = pub_date.replace(tzinfo=None)  # Remove timezone for consistency
+                            except:
+                                pub_date = datetime.now()
+                        elif isinstance(pub_date_str, (int, float)):
+                            pub_date = datetime.fromtimestamp(pub_date_str)
+                        else:
+                            pub_date = datetime.now()
+                    else:
+                        pub_date = datetime.now()
+
+                    # Extract summary
+                    summary = content.get('summary', '') or content.get('description', '')
+                    if len(summary) > 200:
+                        summary = summary[:200] + '...'
+
+                    # Get link from canonical URL or click-through URL
+                    link = ''
+                    if content.get('canonicalUrl'):
+                        link = content['canonicalUrl'].get('url', '')
+                    elif content.get('clickThroughUrl'):
+                        link = content['clickThroughUrl'].get('url', '')
+                    elif content.get('link'):
+                        link = content['link']
+
+                    # Get source/provider
+                    provider = content.get('provider', {})
+                    source = provider.get('displayName', 'Yahoo Finance') if isinstance(provider, dict) else 'Yahoo Finance'
+
+                    news_items.append({
+                        'symbol': symbol,
+                        'title': title,
+                        'summary': summary,
+                        'link': link,
+                        'source': source,
+                        'published': pub_date.strftime('%Y-%m-%d %H:%M'),
+                        'published_datetime': pub_date,
+                    })
+
         except Exception as e:
-            logger.warning(f"Error fetching Yahoo news for {symbol}: {e}")
-        
+            logger.warning(f"Error fetching Yahoo/yfinance news for {symbol}: {e}")
+
+        # If yfinance returned no results, try Google News RSS as fallback
+        if not news_items:
+            logger.debug(f"yfinance returned no news for {symbol}, trying Google News RSS")
+            news_items = self.get_google_news_rss(symbol)
+
         return news_items
     
     def get_finviz_news(self, symbol: str) -> List[dict]:
@@ -220,32 +267,95 @@ class NewsFetcher:
     
     def get_market_news(self) -> List[dict]:
         """
-        Get general market news.
+        Get general market news using yfinance for SPY (S&P 500 ETF).
+        Falls back to Google News RSS for stock market news.
         """
         news_items = []
 
         try:
-            # Yahoo Finance market news RSS
-            url = "https://feeds.finance.yahoo.com/rss/2.0/headline?s=^GSPC&region=US&lang=en-US"
-            feed = feedparser.parse(url)
+            import yfinance as yf
 
-            for entry in feed.entries[:5]:
-                published = entry.get('published_parsed')
-                if published:
-                    pub_date = datetime(*published[:6])
-                else:
-                    pub_date = datetime.now()
+            # Use SPY as a proxy for general market news (^GSPC doesn't have news)
+            ticker = yf.Ticker('SPY')
+            news = ticker.news
 
-                news_items.append({
-                    'title': entry.get('title', ''),
-                    'summary': entry.get('summary', '')[:200],
-                    'link': entry.get('link', ''),
-                    'source': 'Yahoo Finance',
-                    'published': pub_date.strftime('%Y-%m-%d %H:%M'),
-                })
+            if news:
+                for item in news[:5]:
+                    content = item.get('content', {})
+                    if not content:
+                        content = item
+
+                    title = content.get('title', '')
+                    if not title:
+                        continue
+
+                    pub_date_str = content.get('pubDate') or content.get('providerPublishTime')
+                    if pub_date_str:
+                        if isinstance(pub_date_str, str):
+                            try:
+                                pub_date = datetime.fromisoformat(pub_date_str.replace('Z', '+00:00'))
+                                pub_date = pub_date.replace(tzinfo=None)
+                            except:
+                                pub_date = datetime.now()
+                        elif isinstance(pub_date_str, (int, float)):
+                            pub_date = datetime.fromtimestamp(pub_date_str)
+                        else:
+                            pub_date = datetime.now()
+                    else:
+                        pub_date = datetime.now()
+
+                    summary = content.get('summary', '') or content.get('description', '')
+                    if len(summary) > 200:
+                        summary = summary[:200] + '...'
+
+                    link = ''
+                    if content.get('canonicalUrl'):
+                        link = content['canonicalUrl'].get('url', '')
+                    elif content.get('clickThroughUrl'):
+                        link = content['clickThroughUrl'].get('url', '')
+
+                    provider = content.get('provider', {})
+                    source = provider.get('displayName', 'Yahoo Finance') if isinstance(provider, dict) else 'Yahoo Finance'
+
+                    news_items.append({
+                        'title': title,
+                        'summary': summary,
+                        'link': link,
+                        'source': source,
+                        'published': pub_date.strftime('%Y-%m-%d %H:%M'),
+                    })
 
         except Exception as e:
-            logger.warning(f"Error fetching market news: {e}")
+            logger.warning(f"Error fetching market news via yfinance: {e}")
+
+        # Fallback to Google News if yfinance returned no results
+        if not news_items:
+            logger.debug("yfinance market news empty, trying Google News RSS")
+            try:
+                url = "https://news.google.com/rss/search?q=stock+market+today&hl=en-US&gl=US&ceid=US:en"
+                response = self.session.get(url, timeout=10)
+                if response.status_code == 200:
+                    feed = feedparser.parse(response.text)
+                    for entry in feed.entries[:5]:
+                        published = entry.get('published_parsed')
+                        if published:
+                            pub_date = datetime(*published[:6])
+                        else:
+                            pub_date = datetime.now()
+
+                        title = entry.get('title', '')
+                        if ' - ' in title:
+                            title = title.rsplit(' - ', 1)[0]
+
+                        news_items.append({
+                            'title': title,
+                            'summary': '',
+                            'link': entry.get('link', ''),
+                            'source': 'Google News',
+                            'published': pub_date.strftime('%Y-%m-%d %H:%M'),
+                        })
+            except Exception as e:
+                logger.warning(f"Error fetching market news from Google: {e}")
 
         return news_items
 

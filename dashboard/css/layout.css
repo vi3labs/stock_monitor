@@ -1,0 +1,314 @@
+/**
+ * Stock Monitor Dashboard - Layout Styles
+ * Grid layout and responsive structure
+ */
+
+/* Main container */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: var(--space-lg);
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md) 0;
+  margin-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.header__title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  background: linear-gradient(135deg, var(--accent-gradient-start), var(--accent-gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.header__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.header__timestamp {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* Market Indices Grid */
+.indices-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+/* Main content area */
+.main-content {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: var(--space-xl);
+  flex: 1;
+}
+
+/* Left column */
+.left-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  min-width: 0; /* Prevent grid blowout */
+}
+
+/* Right column */
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* Section containers */
+.section {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+.section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.section__title {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.section__content {
+  padding: var(--space-lg);
+}
+
+/* Watchlist section - takes remaining space */
+.watchlist-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+}
+
+.watchlist-section .section__content {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+}
+
+/* Movers section - fixed height panels */
+.movers-section {
+  max-height: 500px;
+}
+
+/* Tablet layout */
+@media (max-width: 1199px) {
+  .indices-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .main-content {
+    grid-template-columns: 1fr;
+  }
+
+  .right-column {
+    order: -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .right-column > * {
+    flex: 1;
+    min-width: 300px;
+  }
+}
+
+/* Mobile layout */
+@media (max-width: 767px) {
+  .dashboard {
+    padding: var(--space-md);
+    padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom, 0));
+  }
+
+  .indices-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-sm);
+  }
+
+  .header {
+    flex-direction: column;
+    gap: var(--space-md);
+    text-align: center;
+  }
+
+  .header__right {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+
+  .header__timestamp {
+    order: 3;
+    width: 100%;
+    text-align: center;
+  }
+
+  .right-column {
+    flex-direction: column;
+  }
+
+  .right-column > * {
+    min-width: auto;
+  }
+
+  /* Hide Name and Sector columns on mobile */
+  .watchlist-table th:nth-child(2),
+  .watchlist-table td:nth-child(2),
+  .watchlist-table th:nth-child(6),
+  .watchlist-table td:nth-child(6) {
+    display: none;
+  }
+
+  /* Stack filter bar vertically */
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-sm);
+    padding: var(--space-md);
+  }
+
+  .filter-bar__search {
+    max-width: none;
+  }
+
+  .filter-bar__select {
+    width: 100%;
+  }
+
+  /* Touch-friendly tap targets (44px minimum) */
+  .watchlist-table td {
+    padding: var(--space-md);
+    min-height: 44px;
+  }
+
+  .watchlist-table th {
+    padding: var(--space-sm) var(--space-md);
+    min-height: 44px;
+  }
+
+  .btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .filter-bar__input,
+  .filter-bar__select {
+    min-height: 44px;
+    font-size: 16px; /* Prevents iOS zoom */
+  }
+
+  /* Mover items touch-friendly */
+  .mover-item {
+    padding: var(--space-md) 0;
+    min-height: 44px;
+  }
+
+  /* News items touch-friendly */
+  .news-item {
+    padding: var(--space-md) 0;
+    min-height: 44px;
+  }
+
+  /* Index cards smaller on mobile */
+  .index-card {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .index-card__price {
+    font-size: var(--text-lg);
+  }
+
+  .index-card__change {
+    font-size: var(--text-xs);
+  }
+}
+
+/* Small mobile (< 480px) */
+@media (max-width: 479px) {
+  .dashboard {
+    padding: var(--space-sm);
+    padding-bottom: calc(var(--space-sm) + env(safe-area-inset-bottom, 0));
+  }
+
+  .indices-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Even smaller index cards */
+  .index-card__name {
+    font-size: var(--text-xs);
+  }
+
+  .index-card__price {
+    font-size: var(--text-base);
+  }
+
+  .index-card__sparkline {
+    height: 20px;
+  }
+
+  /* Watchlist - hide even more columns */
+  .watchlist-table th:nth-child(5),
+  .watchlist-table td:nth-child(5) {
+    display: none;
+  }
+
+  .section__header {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .section__content {
+    padding: var(--space-md);
+  }
+
+  .section__title {
+    font-size: var(--text-sm);
+  }
+}
+
+/* Safe area insets for iPhone */
+@supports (padding: max(0px)) {
+  .dashboard {
+    padding-left: max(var(--space-md), env(safe-area-inset-left));
+    padding-right: max(var(--space-md), env(safe-area-inset-right));
+  }
+
+  @media (max-width: 479px) {
+    .dashboard {
+      padding-left: max(var(--space-sm), env(safe-area-inset-left));
+      padding-right: max(var(--space-sm), env(safe-area-inset-right));
+    }
+  }
+}

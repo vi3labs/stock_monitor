@@ -47,5 +47,9 @@ feedparser>=6.0.0         # RSS feed parsing
 # Environment Variables
 python-dotenv>=1.0.0      # Load .env files
 
+# Dashboard API Server
+flask>=3.0.0              # Web framework
+flask-cors>=4.0.0         # CORS support for API
+
 # Development/Testing (optional)
 # pytest>=7.0.0

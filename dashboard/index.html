@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1115">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Stock Monitor Dashboard</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <div class="dashboard">
+    <!-- Header -->
+    <header class="header">
+      <h1 class="header__title">Stock Monitor</h1>
+      <div class="header__right">
+        <div class="market-status" id="market-status" title="Market status">
+          <span class="market-status__dot"></span>
+          <span class="market-status__text">Loading...</span>
+        </div>
+        <span class="header__timestamp" id="timestamp">Loading...</span>
+        <button class="btn" id="refresh-btn" aria-label="Refresh data">
+          <svg class="btn__icon" id="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+            <path d="M21 3v5h-5"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+    </header>
+
+    <!-- Market Indices Grid -->
+    <section class="indices-grid" id="indices-grid" aria-label="Market Indices">
+      <!-- Index cards populated by JavaScript -->
+      <div class="index-card loading">
+        <div class="index-card__name skeleton skeleton--text" style="width: 80px;"></div>
+        <div class="index-card__price skeleton skeleton--price"></div>
+        <div class="index-card__change skeleton skeleton--text" style="width: 100px;"></div>
+        <div class="index-card__sparkline skeleton skeleton--sparkline"></div>
+      </div>
+      <div class="index-card loading">
+        <div class="index-card__name skeleton skeleton--text" style="width: 80px;"></div>
+        <div class="index-card__price skeleton skeleton--price"></div>
+        <div class="index-card__change skeleton skeleton--text" style="width: 100px;"></div>
+        <div class="index-card__sparkline skeleton skeleton--sparkline"></div>
+      </div>
+      <div class="index-card loading">
+        <div class="index-card__name skeleton skeleton--text" style="width: 80px;"></div>
+        <div class="index-card__price skeleton skeleton--price"></div>
+        <div class="index-card__change skeleton skeleton--text" style="width: 100px;"></div>
+        <div class="index-card__sparkline skeleton skeleton--sparkline"></div>
+      </div>
+      <div class="index-card loading">
+        <div class="index-card__name skeleton skeleton--text" style="width: 80px;"></div>
+        <div class="index-card__price skeleton skeleton--price"></div>
+        <div class="index-card__change skeleton skeleton--text" style="width: 100px;"></div>
+        <div class="index-card__sparkline skeleton skeleton--sparkline"></div>
+      </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Left Column -->
+      <div class="left-column">
+        <!-- Sector Performance -->
+        <section class="section" aria-label="Sector Performance">
+          <div class="section__header">
+            <h2 class="section__title">Sector Performance</h2>
+          </div>
+          <div class="section__content">
+            <div class="sector-chart" id="sector-chart">
+              <!-- Sector rows populated by JavaScript -->
+              <div class="sector-row loading">
+                <span class="sector-row__name skeleton skeleton--text" style="width: 100px;"></span>
+                <div class="sector-row__bar-container">
+                  <div class="skeleton" style="height: 100%; width: 100%;"></div>
+                </div>
+                <span class="sector-row__value skeleton skeleton--text" style="width: 50px;"></span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Watchlist -->
+        <section class="section watchlist-section" aria-label="Watchlist">
+          <div class="section__header">
+            <h2 class="section__title">Watchlist</h2>
+            <span class="text-sm text-secondary" id="watchlist-count">-- stocks</span>
+          </div>
+
+          <!-- Filter Bar -->
+          <div class="filter-bar">
+            <div class="filter-bar__search">
+              <input
+                type="text"
+                class="filter-bar__input"
+                id="search-input"
+                placeholder="Search symbols..."
+                aria-label="Search stocks"
+              >
+            </div>
+            <select class="filter-bar__select" id="sector-filter" aria-label="Filter by sector">
+              <option value="">All Sectors</option>
+              <!-- Options populated by JavaScript -->
+            </select>
+            <select class="filter-bar__select" id="sort-select" aria-label="Sort by">
+              <option value="symbol">Symbol</option>
+              <option value="change" selected>Change %</option>
+              <option value="price">Price</option>
+              <option value="name">Name</option>
+            </select>
+          </div>
+
+          <!-- Watchlist Table -->
+          <div class="section__content">
+            <table class="watchlist-table" id="watchlist-table">
+              <thead>
+                <tr>
+                  <th data-sort="symbol">Symbol <span class="sort-icon"></span></th>
+                  <th data-sort="name">Name <span class="sort-icon"></span></th>
+                  <th data-sort="price">Price <span class="sort-icon"></span></th>
+                  <th data-sort="change" class="sorted">Change <span class="sort-icon">&#9660;</span></th>
+                  <th>Trend</th>
+                  <th data-sort="sector">Sector <span class="sort-icon"></span></th>
+                </tr>
+              </thead>
+              <tbody id="watchlist-body">
+                <!-- Rows populated by JavaScript -->
+                <tr class="loading">
+                  <td><span class="skeleton skeleton--text" style="width: 50px;"></span></td>
+                  <td><span class="skeleton skeleton--text" style="width: 150px;"></span></td>
+                  <td><span class="skeleton skeleton--text" style="width: 70px;"></span></td>
+                  <td><span class="skeleton skeleton--text" style="width: 60px;"></span></td>
+                  <td><span class="skeleton skeleton--sparkline"></span></td>
+                  <td><span class="skeleton skeleton--text" style="width: 80px;"></span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column -->
+      <div class="right-column">
+        <!-- Top Movers -->
+        <section class="section movers-section" aria-label="Top Movers">
+          <div class="section__header">
+            <h2 class="section__title">Top Movers</h2>
+          </div>
+          <div class="section__content">
+            <div class="movers-panel" id="movers-panel">
+              <!-- Gainers -->
+              <div class="movers-panel__group" id="gainers-panel">
+                <h3 class="movers-panel__group-title movers-panel__group-title--gainers">Gainers</h3>
+                <div id="gainers-list">
+                  <!-- Items populated by JavaScript -->
+                  <div class="mover-item loading">
+                    <span class="skeleton skeleton--text" style="width: 50px;"></span>
+                    <span class="skeleton skeleton--sparkline"></span>
+                    <div class="mover-item__data">
+                      <span class="skeleton skeleton--text" style="width: 60px;"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Losers -->
+              <div class="movers-panel__group" id="losers-panel">
+                <h3 class="movers-panel__group-title movers-panel__group-title--losers">Losers</h3>
+                <div id="losers-list">
+                  <!-- Items populated by JavaScript -->
+                  <div class="mover-item loading">
+                    <span class="skeleton skeleton--text" style="width: 50px;"></span>
+                    <span class="skeleton skeleton--sparkline"></span>
+                    <div class="mover-item__data">
+                      <span class="skeleton skeleton--text" style="width: 60px;"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- News Feed -->
+        <section class="section news-section" aria-label="Market News">
+          <div class="section__header">
+            <h2 class="section__title">Market News</h2>
+          </div>
+          <div class="section__content">
+            <div class="news-feed" id="news-list">
+              <!-- News items populated by JavaScript -->
+              <div class="news-item loading">
+                <div class="news-item__content">
+                  <div class="skeleton skeleton--text" style="width: 90%; height: 1.1em;"></div>
+                  <div class="news-item__meta">
+                    <span class="skeleton skeleton--text" style="width: 60px;"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="news-item loading">
+                <div class="news-item__content">
+                  <div class="skeleton skeleton--text" style="width: 85%; height: 1.1em;"></div>
+                  <div class="news-item__meta">
+                    <span class="skeleton skeleton--text" style="width: 60px;"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="news-item loading">
+                <div class="news-item__content">
+                  <div class="skeleton skeleton--text" style="width: 80%; height: 1.1em;"></div>
+                  <div class="news-item__meta">
+                    <span class="skeleton skeleton--text" style="width: 60px;"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Stock Detail Modal (created dynamically by StockDetail.js) -->
+
+  <!-- Keyboard Shortcuts Help Modal -->
+  <div class="modal-overlay" id="keyboard-help-modal" aria-hidden="true">
+    <div class="modal keyboard-help-modal">
+      <button class="modal__close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+      <div class="modal__content">
+        <h2 class="modal__title">Keyboard Shortcuts</h2>
+        <div class="keyboard-help">
+          <div class="keyboard-help__section">
+            <h3>Navigation</h3>
+            <div class="shortcut-row">
+              <span class="shortcut-key">j</span> or <span class="shortcut-key">&#8595;</span>
+              <span class="shortcut-desc">Next stock</span>
+            </div>
+            <div class="shortcut-row">
+              <span class="shortcut-key">k</span> or <span class="shortcut-key">&#8593;</span>
+              <span class="shortcut-desc">Previous stock</span>
+            </div>
+            <div class="shortcut-row">
+              <span class="shortcut-key">Enter</span> or <span class="shortcut-key">o</span>
+              <span class="shortcut-desc">Open stock details</span>
+            </div>
+            <div class="shortcut-row">
+              <span class="shortcut-key">/</span>
+              <span class="shortcut-desc">Focus search</span>
+            </div>
+          </div>
+          <div class="keyboard-help__section">
+            <h3>Actions</h3>
+            <div class="shortcut-row">
+              <span class="shortcut-key">r</span>
+              <span class="shortcut-desc">Refresh data</span>
+            </div>
+            <div class="shortcut-row">
+              <span class="shortcut-key">Esc</span>
+              <span class="shortcut-desc">Close modal / Clear selection</span>
+            </div>
+            <div class="shortcut-row">
+              <span class="shortcut-key">?</span>
+              <span class="shortcut-desc">Show this help</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/api.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/components/Indices.js"></script>
+  <script src="js/components/Sectors.js"></script>
+  <script src="js/components/Watchlist.js"></script>
+  <script src="js/components/Movers.js"></script>
+  <script src="js/components/News.js"></script>
+  <script src="js/components/StockDetail.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
