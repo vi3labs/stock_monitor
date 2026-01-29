@@ -109,14 +109,14 @@ def main():
         world_news = news_fetcher.get_world_us_news(max_items=6)
         logger.info(f"Got {len(world_news)} world/US news items")
 
-        # Fetch Google Trends data for sentiment
+        # Fetch Google Trends data for sentiment (conservative rate limiting)
         trends_data = {}
         try:
             logger.info("Fetching Google Trends data...")
-            trends_fetcher = TrendsFetcher(cache_duration_minutes=60)
+            trends_fetcher = TrendsFetcher(cache_duration_minutes=240)  # 4-hour cache
             # Get company names for better search results
             company_names = {s: quotes.get(s, {}).get('name', s) for s in top_movers}
-            trends_data = trends_fetcher.get_trends(top_movers, company_names, max_symbols=15)
+            trends_data = trends_fetcher.get_trends(top_movers, company_names, max_symbols=8)
             logger.info(f"Got trends data for {len(trends_data)} symbols")
         except Exception as e:
             logger.warning(f"Could not fetch trends data: {e}")

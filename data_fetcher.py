@@ -738,13 +738,14 @@ class TrendsFetcher:
     Provides "silent attention" signals - shows which tickers are gaining
     or losing public search interest.
 
-    Rate limiting:
+    Rate limiting (conservative to avoid 429s):
     - Batch size: 5 symbols max per request (Google's limit)
-    - Delay: 3 seconds between batches
-    - Cache: 60 minutes (trends don't change fast)
+    - Delay: 5 seconds between batches
+    - Cache: 4 hours (trends don't change fast, avoids repeated hits)
+    - Max symbols: 8 per run
     """
 
-    def __init__(self, cache_duration_minutes: int = 60):
+    def __init__(self, cache_duration_minutes: int = 240):
         self._cache = {}
         self._cache_time = {}
         self._cache_lock = threading.Lock()
@@ -908,9 +909,9 @@ class TrendsFetcher:
             except Exception as e:
                 logger.warning(f"Error fetching trends batch {batch_idx + 1}: {e}")
 
-            # Delay between batches to avoid rate limits
+            # Delay between batches to avoid rate limits (conservative)
             if batch_idx < len(batches) - 1:
-                time.sleep(3)
+                time.sleep(5)
 
         elapsed = time.time() - start_time
         logger.info(f"Fetched trends for {len(results)}/{len(symbols_to_fetch)} symbols in {elapsed:.1f}s")
