@@ -96,14 +96,26 @@ def main():
             news = news_fetcher.get_news_for_watchlist(notable, symbol_names)
         
         logger.info(f"Got news for {len(news)} symbols")
-        
+
+        # Fetch market news (like pre-market report)
+        logger.info("Fetching market news...")
+        market_news = news_fetcher.get_market_news()
+        logger.info(f"Got {len(market_news)} market news items")
+
+        # Fetch world & US news
+        logger.info("Fetching world & US news...")
+        world_news = news_fetcher.get_world_us_news(max_items=6)
+        logger.info(f"Got {len(world_news)} world/US news items")
+
         # Generate email
         logger.info("Generating email...")
         html_content = email_generator.generate_postmarket_report(
             indices=indices,
             quotes=quotes,
             postmarket_data=postmarket_data,
-            news=news
+            news=news,
+            market_news=market_news,
+            world_news=world_news
         )
         
         # Save a local copy for debugging

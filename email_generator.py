@@ -325,13 +325,29 @@ class EmailGenerator:
                                     indices: Dict[str, dict],
                                     quotes: Dict[str, dict],
                                     postmarket_data: Dict[str, dict],
-                                    news: Dict[str, List[dict]]) -> str:
+                                    news: Dict[str, List[dict]],
+                                    market_news: List[dict] = None,
+                                    world_news: List[dict] = None) -> str:
         """Generate post-market closing report."""
 
         now = datetime.now()
         date_str = now.strftime("%A, %B %d, %Y")
 
         content = self._header("📊 Market Close Report", date_str)
+
+        # World & US Headlines (like pre-market)
+        if world_news:
+            content += self._section_title("🌍 World & US Headlines")
+            for item in world_news[:6]:
+                content += self._headline_item(item['title'], f"{item['source']} • {item['published']}", item['link'])
+            content += self._spacer(10)
+
+        # Market News (like pre-market)
+        if market_news:
+            content += self._section_title("📰 Market News")
+            for item in market_news[:4]:
+                content += self._headline_item(item['title'], f"{item['source']} • {item['published']}", item['link'])
+            content += self._spacer(10)
 
         # Market indices
         if indices:
@@ -399,6 +415,19 @@ class EmailGenerator:
                         data.get('post_market_change_percent', 0)
                     )
                 content += self._spacer(10)
+
+        # Stock-specific news (like pre-market)
+        if news:
+            content += self._section_title("📈 Stock News")
+            news_count = 0
+            for symbol, items in news.items():
+                if news_count >= 5:
+                    break
+                for item in items[:1]:
+                    content += self._news_item(symbol, item['title'], f"{item['source']} • {item['published']}", item['link'])
+                    news_count += 1
+                    break
+            content += self._spacer(10)
 
         content += self._footer()
 
