@@ -22,20 +22,25 @@ import pytz
 import sys
 import os
 
+# Get the directory where this script lives (for absolute paths)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('stock_monitor.log'),
+        logging.FileHandler(os.path.join(SCRIPT_DIR, 'stock_monitor.log')),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
 
-def load_config(config_path: str = 'config.yaml') -> dict:
+def load_config(config_path: str = None) -> dict:
     """Load configuration from YAML file."""
+    if config_path is None:
+        config_path = os.path.join(SCRIPT_DIR, 'config.yaml')
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
 

@@ -47,33 +47,25 @@ Bottleneck is sequential Yahoo Finance API calls. Each stock requires multiple r
 
 ---
 
-## TODOs for Tomorrow
+## TODOs
 
-### High Priority
-- [ ] Set up scheduled runs (choose one):
-  - Option A: macOS LaunchAgent (recommended for Mac)
-  - Option B: Cron jobs
-  - Option C: Run scheduler daemon in background
-- [ ] Switch to full watchlist for production (edit config.yaml)
-- [ ] Test with full watchlist to confirm timing
+### Completed
+- [x] Set up scheduled runs via macOS LaunchAgents
+- [x] Switch to full watchlist for production
+- [x] Add parallelization to `data_fetcher.py` (ThreadPoolExecutor)
+- [x] Fix news fetching (now working - stock, market, world/US news)
+- [x] Notion integration (watchlist is source of truth)
+- [x] Hardened scheduler.py with absolute paths (Jan 31, 2026)
 
-### Medium Priority
-- [ ] Add parallelization to `data_fetcher.py` to speed up API calls
-  - Use ThreadPoolExecutor for concurrent requests
-  - Could reduce 117-stock runtime from 10 min to ~2-3 min
-- [ ] Investigate why news fetching returns 0 items
-- [ ] Review and clean up watchlist (remove delisted tickers)
-
-### Lower Priority
-- [ ] Notion integration (`notion_sync.py` is prepared but not connected)
-- [ ] Add SMS alerts for big movers (Twilio integration mentioned in README)
-- [ ] Consider paid API (Polygon.io) for more reliable data
-- [ ] Suppress yfinance deprecation warnings
+### Backlog (in Notion Kanban)
+- [ ] Clean up watchlist - remove delisted tickers
+- [ ] Add SMS alerts for big movers (Twilio)
 
 ### Nice to Have
+- [ ] Consider paid API (Polygon.io) for more reliable data
+- [ ] Suppress yfinance deprecation warnings
 - [ ] Add sector performance summary to reports
 - [ ] Weekly report chart as inline image vs attachment
-- [ ] Mobile-optimized email tweaks if needed
 
 ---
 
