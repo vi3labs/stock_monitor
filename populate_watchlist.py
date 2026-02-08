@@ -11,7 +11,13 @@ import yfinance as yf
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Notion API configuration
-NOTION_TOKEN = os.environ.get("NOTION_TOKEN", "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")
+NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
+if not NOTION_TOKEN:
+    from dotenv import load_dotenv
+    load_dotenv()
+    NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
+if not NOTION_TOKEN:
+    raise RuntimeError("NOTION_TOKEN not set. Add it to .env or set as environment variable.")
 DATABASE_ID = "2f2c5966-9a07-80c8-b1cb-fc120342d72b"  # database_id from URL
 NOTION_VERSION = "2022-06-28"  # Use stable version for page creation
 
