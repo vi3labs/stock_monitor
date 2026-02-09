@@ -5,9 +5,10 @@ Uses Grok (xAI) to analyze fetched content and generate the daily signal digest.
 """
 
 import os
+import json
 import requests
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 import logging
 
 logger = logging.getLogger(__name__)
@@ -143,7 +144,7 @@ class SignalAnalyzer:
             logger.error(f"Error analyzing signals with Grok: {e}")
             return None
 
-    def generate_full_digest(self, mode: str) -> Optional[str]:
+    def generate_full_digest(self, mode: str) -> Optional[Union[dict, str]]:
         """
         Convenience method that does full fetch + analyze in one call via Grok.
         Grok has real-time X access so it can fetch Twitter content directly.
@@ -152,12 +153,13 @@ class SignalAnalyzer:
             mode: 'PRE_MARKET' or 'POST_CLOSE'
 
         Returns:
-            Complete signal digest text
+            Structured dict with voices/synthesis/cross_signals, or raw string as fallback
         """
         if not self.api_key:
             return None
 
         time_window = "last 12-36 hours" if mode == 'PRE_MARKET' else "last 12-24 hours"
+        watch_field = "watch_or_result"
 
         # Single prompt that asks Grok to both fetch and analyze
         prompt = f"""You are generating a daily market signal digest for an investor-focused email newsletter.
@@ -187,29 +189,28 @@ SOURCE RULES:
 {"* Focus on: overnight macro, liquidity/positioning, risk framing, scenarios" if mode == 'PRE_MARKET' else "* Focus on: why markets moved, narrative confirmation/rejection, regime signals"}
 {"* Use setup language, avoid definitive conclusions" if mode == 'PRE_MARKET' else "* Emphasize meaning over movement"}
 
-OUTPUT FORMAT (STRICT):
+Omit anyone with no meaningful recent signal.
 
-For each person with meaningful signal:
----
-**[Name]**
-Source: [Platform] | Date: [Date]
-> [One-sentence insight, max 25 words]
-
-Regime: [Bull/Bear/Sideways] | Tone: [Cautious/Neutral/Constructive]
-{"Watch: [1 phrase]" if mode == 'PRE_MARKET' else "Result: [Confirm/Contradict/Mixed]"}
----
-
-Then add:
-
-**{"Pre-Market Focus" if mode == 'PRE_MARKET' else "What Changed Today?"}**
-{"* Key risk:" if mode == 'PRE_MARKET' else "* Confirmed theme:"} [one phrase]
-{"* Key theme:" if mode == 'PRE_MARKET' else "* Weakened narrative:"} [one phrase]
-{"* Invalidation:" if mode == 'PRE_MARKET' else "* Open question:"} [one phrase]
-
-**Cross-Signals**
-[List themes mentioned by 2+ voices, or "None identified" if no overlap]
-
-Omit anyone with no meaningful recent signal. Be concise."""
+Return ONLY valid JSON matching this schema (no markdown, no extra text):
+{{
+  "voices": [
+    {{
+      "name": "string",
+      "source": "string (platform name)",
+      "date": "string (YYYY-MM-DD or relative like 'today')",
+      "insight": "string (max 25 words)",
+      "regime": "Bull | Bear | Sideways",
+      "tone": "Cautious | Neutral | Constructive",
+      "watch_or_result": "string ({'what to watch phrase' if mode == 'PRE_MARKET' else 'Confirm / Contradict / Mixed + brief note'})"
+    }}
+  ],
+  "synthesis": {{
+    "key_risk_or_confirmed": "string ({'key risk phrase' if mode == 'PRE_MARKET' else 'confirmed theme'})",
+    "key_theme_or_weakened": "string ({'key theme phrase' if mode == 'PRE_MARKET' else 'weakened narrative'})",
+    "invalidation_or_question": "string ({'invalidation condition' if mode == 'PRE_MARKET' else 'open question'})"
+  }},
+  "cross_signals": ["string (themes mentioned by 2+ voices, or empty array if none)"]
+}}"""
 
         try:
             response = requests.post(
@@ -222,13 +223,19 @@ Omit anyone with no meaningful recent signal. Be concise."""
                     "model": self.model,
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": 2000,
-                    "temperature": 0.3
+                    "temperature": 0.3,
+                    "response_format": {"type": "json_object"}
                 },
                 timeout=60
             )
 
             if response.status_code == 200:
-                return response.json()['choices'][0]['message']['content']
+                raw = response.json()['choices'][0]['message']['content']
+                try:
+                    return json.loads(raw)
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse Grok JSON response, returning raw string")
+                    return raw
             else:
                 logger.error(f"Grok API error: {response.status_code} - {response.text}")
                 return None

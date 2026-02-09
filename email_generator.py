@@ -357,7 +357,7 @@ class EmailGenerator:
         """Generate a spacer row."""
         return f'<tr><td style="height: {height}px;"></td></tr>'
 
-    def _signal_digest_section(self, signal_digest: str) -> str:
+    def _signal_digest_section_legacy(self, signal_digest: str) -> str:
         """Convert signal digest markdown-like text to HTML matching email style."""
         if not signal_digest:
             return ""
@@ -424,6 +424,103 @@ class EmailGenerator:
             </td>
         </tr>
 """
+
+    def _signal_digest_section_json(self, data: dict) -> str:
+        """Render structured signal digest JSON as styled HTML for email."""
+        voices = data.get('voices', [])
+        synthesis = data.get('synthesis', {})
+        cross_signals = data.get('cross_signals', [])
+
+        html_parts = []
+
+        if not voices:
+            html_parts.append(
+                f'<div style="color: {self.c["text_secondary"]}; font-size: 13px; '
+                f'font-style: italic; padding: 8px 0;">No meaningful signals detected</div>'
+            )
+        else:
+            regime_colors = {
+                'Bull': self.c['green'],
+                'Bear': self.c['red'],
+                'Sideways': self.c['neutral']
+            }
+            tone_colors = {
+                'Cautious': '#FFA726',
+                'Neutral': self.c['neutral'],
+                'Constructive': self.c['green']
+            }
+
+            for voice in voices:
+                regime = voice.get('regime', 'Sideways')
+                tone = voice.get('tone', 'Neutral')
+                r_color = regime_colors.get(regime, self.c['neutral'])
+                t_color = tone_colors.get(tone, self.c['neutral'])
+
+                html_parts.append(f"""
+                    <div style="margin-bottom: 16px;">
+                        <div style="color: {self.c['text_primary']}; font-size: 14px; font-weight: 600; margin-bottom: 2px;">{voice.get('name', '')}</div>
+                        <div style="color: {self.c['text_secondary']}; font-size: 11px; margin-bottom: 6px;">{voice.get('source', '')} &bull; {voice.get('date', '')}</div>
+                        <div style="border-left: 3px solid {self.c['accent']}; padding: 6px 12px; background-color: rgba(0,0,0,0.2); border-radius: 0 6px 6px 0; color: {self.c['text_primary']}; font-size: 13px; font-style: italic; margin-bottom: 6px;">{voice.get('insight', '')}</div>
+                        <div style="font-size: 12px;">
+                            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: {r_color}; margin-right: 4px; vertical-align: middle;"></span>
+                            <span style="color: {r_color}; margin-right: 12px; vertical-align: middle;">{regime}</span>
+                            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: {t_color}; margin-right: 4px; vertical-align: middle;"></span>
+                            <span style="color: {t_color}; margin-right: 12px; vertical-align: middle;">{tone}</span>
+                            <span style="color: {self.c['text_secondary']}; vertical-align: middle;">{voice.get('watch_or_result', '')}</span>
+                        </div>
+                    </div>""")
+
+        # Synthesis section
+        if synthesis:
+            html_parts.append(
+                f'<div style="color: {self.c["accent"]}; font-size: 13px; font-weight: 600; '
+                f'margin: 16px 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px;">Synthesis</div>'
+            )
+            for key, label in [
+                ('key_risk_or_confirmed', 'Key Risk / Confirmed'),
+                ('key_theme_or_weakened', 'Key Theme / Weakened'),
+                ('invalidation_or_question', 'Invalidation / Open Question')
+            ]:
+                val = synthesis.get(key, '')
+                if val:
+                    html_parts.append(
+                        f'<div style="color: {self.c["text_primary"]}; font-size: 13px; padding: 3px 0 3px 16px; '
+                        f'line-height: 1.5;">&#8226; <strong>{label}:</strong> {val}</div>'
+                    )
+
+        # Cross-signals
+        if cross_signals:
+            html_parts.append(
+                f'<div style="color: {self.c["accent"]}; font-size: 13px; font-weight: 600; '
+                f'margin: 16px 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px;">Cross-Signals</div>'
+            )
+            for sig in cross_signals:
+                html_parts.append(
+                    f'<div style="color: {self.c["text_primary"]}; font-size: 13px; padding: 3px 0 3px 16px; '
+                    f'line-height: 1.5;">&#8226; {sig}</div>'
+                )
+
+        inner_html = '\n'.join(html_parts)
+
+        return f"""
+        <tr>
+            <td style="padding: 0 20px 20px 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: {self.c['bg_section']}; border-radius: 8px;">
+                    <tr><td style="padding: 16px;">
+                        {inner_html}
+                    </td></tr>
+                </table>
+            </td>
+        </tr>
+"""
+
+    def _signal_digest_section(self, signal_digest) -> str:
+        """Route to appropriate renderer based on signal_digest type."""
+        if not signal_digest:
+            return ""
+        if isinstance(signal_digest, dict):
+            return self._signal_digest_section_json(signal_digest)
+        return self._signal_digest_section_legacy(signal_digest)
 
     def _trends_section(self, trends_data: Dict[str, dict], max_items: int = 5) -> str:
         """
