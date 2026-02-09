@@ -20,6 +20,7 @@ from news_fetcher import NewsFetcher
 from email_generator import EmailGenerator
 from email_sender import EmailSenderFactory
 from notion_watchlist import get_watchlist
+from signal_analyzer import generate_signal_digest
 
 # Configure logging
 logging.basicConfig(
@@ -122,6 +123,18 @@ def main():
             logger.warning(f"Could not fetch trends data: {e}")
             # Continue without trends - it's optional
 
+        # Generate signal digest via Grok
+        signal_digest = None
+        try:
+            logger.info("Generating signal digest via Grok...")
+            signal_digest = generate_signal_digest('PRE_MARKET')
+            if signal_digest:
+                logger.info("Got signal digest")
+            else:
+                logger.info("Signal digest skipped (no API key or no data)")
+        except Exception as e:
+            logger.warning(f"Could not generate signal digest: {e}")
+
         # Generate email
         logger.info("Generating email...")
         html_content = email_generator.generate_premarket_report(
@@ -133,7 +146,8 @@ def main():
             news=news,
             market_news=market_news,
             world_news=world_news,
-            trends_data=trends_data
+            trends_data=trends_data,
+            signal_digest=signal_digest
         )
         
         # Save a local copy for debugging

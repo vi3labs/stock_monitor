@@ -357,6 +357,74 @@ class EmailGenerator:
         """Generate a spacer row."""
         return f'<tr><td style="height: {height}px;"></td></tr>'
 
+    def _signal_digest_section(self, signal_digest: str) -> str:
+        """Convert signal digest markdown-like text to HTML matching email style."""
+        if not signal_digest:
+            return ""
+
+        import re
+
+        lines = signal_digest.strip().split('\n')
+        html_parts = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Bold headers: **Text**
+            if line.startswith('**') and line.endswith('**'):
+                header_text = line.strip('*').strip()
+                html_parts.append(
+                    f'<div style="color: {self.c["accent"]}; font-size: 14px; font-weight: 600; '
+                    f'margin: 16px 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px;">{header_text}</div>'
+                )
+            # Blockquotes: > text (insights)
+            elif line.startswith('>'):
+                quote_text = line.lstrip('>').strip()
+                # Process inline bold
+                quote_text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', quote_text)
+                html_parts.append(
+                    f'<div style="border-left: 3px solid {self.c["accent"]}; padding: 8px 12px; '
+                    f'margin: 4px 0; background-color: {self.c["bg_section"]}; border-radius: 0 6px 6px 0; '
+                    f'color: {self.c["text_primary"]}; font-size: 13px; font-style: italic;">{quote_text}</div>'
+                )
+            # Bullet points: * text or - text
+            elif line.startswith('* ') or line.startswith('- '):
+                bullet_text = line[2:].strip()
+                # Process inline bold
+                bullet_text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', bullet_text)
+                html_parts.append(
+                    f'<div style="color: {self.c["text_primary"]}; font-size: 13px; padding: 3px 0 3px 16px; '
+                    f'line-height: 1.5;">&#8226; {bullet_text}</div>'
+                )
+            # Separator lines: ---
+            elif line.startswith('---'):
+                html_parts.append(
+                    f'<hr style="border: none; border-top: 1px solid {self.c["border"]}; margin: 12px 0;" />'
+                )
+            # Regular text with possible inline formatting
+            else:
+                processed = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line)
+                html_parts.append(
+                    f'<div style="color: {self.c["text_secondary"]}; font-size: 13px; '
+                    f'padding: 2px 0; line-height: 1.5;">{processed}</div>'
+                )
+
+        inner_html = '\n'.join(html_parts)
+
+        return f"""
+        <tr>
+            <td style="padding: 0 20px 20px 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: {self.c['bg_section']}; border-radius: 8px;">
+                    <tr><td style="padding: 16px;">
+                        {inner_html}
+                    </td></tr>
+                </table>
+            </td>
+        </tr>
+"""
+
     def _trends_section(self, trends_data: Dict[str, dict], max_items: int = 5) -> str:
         """
         Generate search trends section showing Google Trends data.
@@ -436,7 +504,8 @@ class EmailGenerator:
                                    news: Dict[str, List[dict]],
                                    market_news: List[dict],
                                    world_news: List[dict] = None,
-                                   trends_data: Dict[str, dict] = None) -> str:
+                                   trends_data: Dict[str, dict] = None,
+                                   signal_digest: str = None) -> str:
         """Generate pre-market morning report."""
 
         now = datetime.now()
@@ -456,6 +525,12 @@ class EmailGenerator:
             content += self._section_title("📰 Market News")
             for item in market_news[:4]:
                 content += self._headline_item(item['title'], f"{item['source']} • {item['published']}", item['link'])
+            content += self._spacer(10)
+
+        # Signal Digest (Grok-powered market voices)
+        if signal_digest:
+            content += self._section_title("🧠 Signal Digest")
+            content += self._signal_digest_section(signal_digest)
             content += self._spacer(10)
 
         # Search Trends (new sentiment signal)
@@ -535,7 +610,8 @@ class EmailGenerator:
                                     news: Dict[str, List[dict]],
                                     market_news: List[dict] = None,
                                     world_news: List[dict] = None,
-                                    trends_data: Dict[str, dict] = None) -> str:
+                                    trends_data: Dict[str, dict] = None,
+                                    signal_digest: str = None) -> str:
         """Generate post-market closing report."""
 
         now = datetime.now()
@@ -555,6 +631,12 @@ class EmailGenerator:
             content += self._section_title("📰 Market News")
             for item in market_news[:4]:
                 content += self._headline_item(item['title'], f"{item['source']} • {item['published']}", item['link'])
+            content += self._spacer(10)
+
+        # Signal Digest (Grok-powered market voices)
+        if signal_digest:
+            content += self._section_title("🧠 Signal Digest")
+            content += self._signal_digest_section(signal_digest)
             content += self._spacer(10)
 
         # Search Trends (sentiment signal)
