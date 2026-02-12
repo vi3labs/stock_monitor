@@ -6,9 +6,11 @@ Uses Grok (xAI) to analyze fetched content and generate the daily signal digest.
 
 import os
 import json
+import re
+import time
 import requests
 from datetime import datetime
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 import logging
 
 logger = logging.getLogger(__name__)
@@ -144,16 +146,77 @@ class SignalAnalyzer:
             logger.error(f"Error analyzing signals with Grok: {e}")
             return None
 
-    def generate_full_digest(self, mode: str) -> Optional[Union[dict, str]]:
+    @staticmethod
+    def _strip_markdown_code_blocks(text: str) -> str:
+        """
+        Strip markdown code block wrappers from a string.
+
+        Grok sometimes wraps JSON output in ```json ... ``` blocks even when
+        asked for raw JSON. This strips those wrappers so json.loads succeeds.
+        """
+        stripped = text.strip()
+        # Match ```json ... ``` or ``` ... ``` (with optional language tag)
+        match = re.match(r'^```(?:json)?\s*\n?(.*?)\n?\s*```$', stripped, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        return stripped
+
+    @staticmethod
+    def _validate_digest_structure(data: dict) -> bool:
+        """
+        Validate that a parsed digest dict contains the required structure.
+
+        Required shape:
+            voices: list
+            synthesis: dict with keys key_risk_or_confirmed, key_theme_or_weakened, invalidation_or_question
+            cross_signals: list
+        """
+        if not isinstance(data, dict):
+            logger.error("Digest validation failed: top-level value is not a dict")
+            return False
+
+        # Check voices
+        if 'voices' not in data or not isinstance(data['voices'], list):
+            logger.error("Digest validation failed: 'voices' missing or not a list")
+            return False
+
+        # Check synthesis
+        if 'synthesis' not in data or not isinstance(data['synthesis'], dict):
+            logger.error("Digest validation failed: 'synthesis' missing or not a dict")
+            return False
+
+        required_synthesis_keys = [
+            'key_risk_or_confirmed',
+            'key_theme_or_weakened',
+            'invalidation_or_question',
+        ]
+        for key in required_synthesis_keys:
+            if key not in data['synthesis']:
+                logger.error(f"Digest validation failed: 'synthesis' missing required key '{key}'")
+                return False
+
+        # Check cross_signals
+        if 'cross_signals' not in data or not isinstance(data['cross_signals'], list):
+            logger.error("Digest validation failed: 'cross_signals' missing or not a list")
+            return False
+
+        return True
+
+    def generate_full_digest(self, mode: str, max_retries: int = 3) -> Optional[dict]:
         """
         Convenience method that does full fetch + analyze in one call via Grok.
         Grok has real-time X access so it can fetch Twitter content directly.
 
+        Includes retry logic with exponential backoff, markdown stripping,
+        and structure validation to handle Grok's occasionally unreliable
+        JSON output.
+
         Args:
             mode: 'PRE_MARKET' or 'POST_CLOSE'
+            max_retries: Number of attempts before giving up (default 3)
 
         Returns:
-            Structured dict with voices/synthesis/cross_signals, or raw string as fallback
+            Structured dict with voices/synthesis/cross_signals, or None on failure
         """
         if not self.api_key:
             return None
@@ -212,40 +275,89 @@ Return ONLY valid JSON matching this schema (no markdown, no extra text):
   "cross_signals": ["string (themes mentioned by 2+ voices, or empty array if none)"]
 }}"""
 
-        try:
-            response = requests.post(
-                f"{self.base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": self.model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 2000,
-                    "temperature": 0.3,
-                    "response_format": {"type": "json_object"}
-                },
-                timeout=60
-            )
+        last_error = None
 
-            if response.status_code == 200:
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info(f"Grok digest attempt {attempt}/{max_retries} for {mode}")
+
+                response = requests.post(
+                    f"{self.base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": self.model,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": 2000,
+                        "temperature": 0.3,
+                        "response_format": {"type": "json_object"}
+                    },
+                    timeout=60
+                )
+
+                if response.status_code != 200:
+                    last_error = f"HTTP {response.status_code}: {response.text[:500]}"
+                    logger.error(f"Grok API error on attempt {attempt}: {last_error}")
+                    if attempt < max_retries:
+                        backoff = 2 ** (attempt - 1)
+                        logger.info(f"Retrying in {backoff}s...")
+                        time.sleep(backoff)
+                    continue
+
                 raw = response.json()['choices'][0]['message']['content']
+
+                # Strip markdown code block wrappers if present
+                cleaned = self._strip_markdown_code_blocks(raw)
+
+                # Attempt JSON parse
                 try:
-                    return json.loads(raw)
-                except json.JSONDecodeError:
-                    logger.warning("Failed to parse Grok JSON response, returning raw string")
-                    return raw
-            else:
-                logger.error(f"Grok API error: {response.status_code} - {response.text}")
-                return None
+                    parsed = json.loads(cleaned)
+                except json.JSONDecodeError as e:
+                    last_error = f"JSON parse error: {e}. Raw content (first 300 chars): {raw[:300]}"
+                    logger.error(f"Attempt {attempt} - {last_error}")
+                    if attempt < max_retries:
+                        backoff = 2 ** (attempt - 1)
+                        logger.info(f"Retrying in {backoff}s...")
+                        time.sleep(backoff)
+                    continue
 
-        except Exception as e:
-            logger.error(f"Error generating digest with Grok: {e}")
-            return None
+                # Validate structure
+                if not self._validate_digest_structure(parsed):
+                    last_error = f"Structure validation failed. Keys present: {list(parsed.keys()) if isinstance(parsed, dict) else type(parsed).__name__}"
+                    logger.error(f"Attempt {attempt} - {last_error}")
+                    if attempt < max_retries:
+                        backoff = 2 ** (attempt - 1)
+                        logger.info(f"Retrying in {backoff}s...")
+                        time.sleep(backoff)
+                    continue
+
+                # Success
+                logger.info(f"Grok digest generated successfully on attempt {attempt} with {len(parsed['voices'])} voices")
+                return parsed
+
+            except requests.exceptions.Timeout:
+                last_error = "Request timed out after 60s"
+                logger.error(f"Attempt {attempt} - {last_error}")
+                if attempt < max_retries:
+                    backoff = 2 ** (attempt - 1)
+                    logger.info(f"Retrying in {backoff}s...")
+                    time.sleep(backoff)
+
+            except Exception as e:
+                last_error = f"Unexpected error: {e}"
+                logger.error(f"Attempt {attempt} - {last_error}")
+                if attempt < max_retries:
+                    backoff = 2 ** (attempt - 1)
+                    logger.info(f"Retrying in {backoff}s...")
+                    time.sleep(backoff)
+
+        logger.error(f"All {max_retries} attempts failed for Grok digest ({mode}). Last error: {last_error}")
+        return None
 
 
-def generate_signal_digest(mode: str = 'PRE_MARKET') -> Optional[str]:
+def generate_signal_digest(mode: str = 'PRE_MARKET') -> Optional[dict]:
     """
     Main entry point for generating signal digest.
 
@@ -253,7 +365,7 @@ def generate_signal_digest(mode: str = 'PRE_MARKET') -> Optional[str]:
         mode: 'PRE_MARKET' or 'POST_CLOSE'
 
     Returns:
-        Signal digest text ready for email insertion
+        Structured dict with voices/synthesis/cross_signals, or None on failure
     """
     analyzer = SignalAnalyzer()
     return analyzer.generate_full_digest(mode)
