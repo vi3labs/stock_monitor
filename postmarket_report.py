@@ -192,7 +192,7 @@ def main():
         # Send email
         recipient = email_config.get('recipient_email', email_config.get('sender_email'))
         
-        if recipient and email_config.get('sender_email') and email_config.get('sender_password'):
+        if recipient and email_sender.sender_email and email_sender.sender_password:
             logger.info(f"Sending email to {recipient}...")
             success = email_sender.send_postmarket_report(recipient, html_content)
             
