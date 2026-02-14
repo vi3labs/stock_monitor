@@ -40,7 +40,9 @@ class EmailSender:
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
         self.sender_email = sender_email or os.environ.get('STOCK_MONITOR_EMAIL')
-        self.sender_password = sender_password or os.environ.get('STOCK_MONITOR_PASSWORD')
+        self.sender_password = (sender_password
+                                or os.environ.get('STOCK_MONITOR_EMAIL_PASSWORD')
+                                or os.environ.get('STOCK_MONITOR_PASSWORD'))
         
         if not self.sender_email or not self.sender_password:
             logger.warning("Email credentials not configured. Set in config.yaml or environment variables.")
@@ -112,7 +114,11 @@ class EmailSender:
 
                 except smtplib.SMTPAuthenticationError as e:
                     # Auth errors shouldn't be retried
-                    logger.error(f"SMTP Authentication failed. Check your email credentials. Error: {e}")
+                    logger.error(
+                        f"SMTP Authentication failed for {self.sender_email} "
+                        f"on {self.smtp_server}:{self.smtp_port}. "
+                        f"Check your app password (env: STOCK_MONITOR_EMAIL_PASSWORD). Error: {e}"
+                    )
                     return False
                 except (OSError, smtplib.SMTPServerDisconnected,
                         smtplib.SMTPConnectError, ConnectionError) as e:
@@ -168,8 +174,14 @@ class EmailSender:
                 server.login(self.sender_email, self.sender_password)
                 logger.info("SMTP connection test successful")
                 return True
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(
+                f"SMTP auth failed for {self.sender_email} on {self.smtp_server}:{self.smtp_port}. "
+                f"Check app password (env: STOCK_MONITOR_EMAIL_PASSWORD). Error: {e}"
+            )
+            return False
         except Exception as e:
-            logger.error(f"SMTP connection test failed: {e}")
+            logger.error(f"SMTP connection test failed for {self.smtp_server}:{self.smtp_port}: {e}")
             return False
 
 
@@ -191,9 +203,16 @@ class EmailSenderFactory:
 if __name__ == "__main__":
     # Test email sender
     import yaml
-    
+
+    # Load .env file if python-dotenv is available
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
+    except ImportError:
+        pass
+
     logging.basicConfig(level=logging.INFO)
-    
+
     # Load config
     try:
         with open('config.yaml', 'r') as f:

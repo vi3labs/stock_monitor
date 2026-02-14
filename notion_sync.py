@@ -10,7 +10,6 @@ Usage:
     python notion_sync.py --summary    # Update daily summary section
 """
 
-import yaml
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -21,18 +20,11 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from config_loader import load_config, setup_logging
 from data_fetcher import StockDataFetcher
 from notion_watchlist import get_watchlist
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('stock_monitor.log'),
-        logging.StreamHandler()
-    ]
-)
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -116,12 +108,6 @@ COMPANY_NAMES = {
     'AUMI': 'Themes Gold Miners ETF',
     'AGMI': 'Themes Silver Miners ETF',
 }
-
-
-def load_config(config_path: str = 'config.yaml') -> dict:
-    """Load configuration from YAML file."""
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
 
 
 class NotionStockSync:

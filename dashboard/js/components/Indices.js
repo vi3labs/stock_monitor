@@ -15,6 +15,14 @@ const IndicesComponent = (() => {
     '^RUT': { name: 'Russell 2000', order: 5 }
   };
 
+  // Futures display configuration
+  const FUTURES_CONFIG = {
+    'ES=F': { name: 'S&P Futures', order: 6 },
+    'NQ=F': { name: 'NASDAQ Futures', order: 7 },
+    'YM=F': { name: 'Dow Futures', order: 8 },
+    'RTY=F': { name: 'Russell Futures', order: 9 }
+  };
+
   /**
    * Render index cards
    * @param {Object} indices - Index data from API
@@ -127,8 +135,86 @@ const IndicesComponent = (() => {
     `).join('');
   }
 
+  /**
+   * Render futures cards
+   * @param {Object} futures - Futures data from API
+   */
+  function renderFutures(futures) {
+    const container = document.getElementById('futures-grid');
+    if (!container) return;
+
+    if (!futures || Object.keys(futures).length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+
+    // Sort futures by configured order
+    const sortedFutures = Object.entries(futures)
+      .map(([symbol, data]) => ({
+        symbol,
+        ...data,
+        config: FUTURES_CONFIG[symbol] || { name: data.name || symbol, order: 99 }
+      }))
+      .sort((a, b) => a.config.order - b.config.order);
+
+    // Render cards
+    container.innerHTML = sortedFutures.map(renderFuturesCard).join('');
+
+    // Draw sparklines after DOM update
+    requestAnimationFrame(() => {
+      sortedFutures.forEach(future => {
+        if (future.daily_closes && future.daily_closes.length > 1) {
+          const canvas = document.getElementById(`sparkline-future-${future.symbol.replace('=', '')}`);
+          if (canvas) {
+            Charts.drawSparkline(canvas, future.daily_closes, future.change_percent, {
+              showEndPoint: true
+            });
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Render a single futures card
+   */
+  function renderFuturesCard(future) {
+    const { symbol, config } = future;
+    const cleanSymbol = symbol.replace('=', '');
+    const isPositive = future.change_percent >= 0;
+    const changeClass = isPositive ? 'index-card__change--positive' : 'index-card__change--negative';
+    const sign = isPositive ? '+' : '';
+
+    const priceDisplay = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(future.price);
+
+    const changeDisplay = `${sign}${future.change.toFixed(2)} (${sign}${future.change_percent.toFixed(2)}%)`;
+
+    return `
+      <div class="index-card futures-card" role="article" aria-label="${config.name}">
+        <div class="index-card__name">
+          ${config.name}
+          <span class="futures-label">FUTURES</span>
+        </div>
+        <div class="index-card__price">${priceDisplay}</div>
+        <div class="index-card__change ${changeClass}">
+          ${isPositive ? '&#9650;' : '&#9660;'} ${changeDisplay}
+        </div>
+        <canvas
+          class="index-card__sparkline"
+          id="sparkline-future-${cleanSymbol}"
+          role="img"
+          aria-label="${config.name} 7-day trend"
+        ></canvas>
+      </div>
+    `;
+  }
+
   return {
     render,
-    renderLoading
+    renderLoading,
+    renderFutures
   };
 })();

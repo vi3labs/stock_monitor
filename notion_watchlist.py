@@ -4,11 +4,19 @@ Notion Watchlist Module
 =======================
 Fetches the active stock watchlist from Notion database.
 Source of truth for which tickers to track.
+
+Fallback priority when Notion is unavailable:
+1. Notion API (primary)
+2. last_watchlist.json cache (if < 24h old)
+3. config.yaml watchlist (static fallback)
 """
 
 import os
+import json
 import requests
 import time
+import yaml
+from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import logging
 
@@ -25,17 +33,18 @@ logger = logging.getLogger(__name__)
 # Set NOTION_TOKEN environment variable or create a .env file
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 if not NOTION_TOKEN:
-    raise EnvironmentError(
-        "NOTION_TOKEN environment variable is required. "
-        "Set it via: export NOTION_TOKEN='ntn_your_token_here' "
-        "or add it to a .env file."
+    logger.warning(
+        "NOTION_TOKEN environment variable not set. "
+        "Notion API calls will be unavailable. "
+        "Falling back to config.yaml watchlist."
     )
 
 DATABASE_ID = os.environ.get("NOTION_DATABASE_ID", "2f2c5966-9a07-80c8-b1cb-fc120342d72b")
 NOTION_VERSION = "2022-06-28"
 
+# Build headers only if token is available
 HEADERS = {
-    "Authorization": f"Bearer {NOTION_TOKEN}",
+    "Authorization": f"Bearer {NOTION_TOKEN}" if NOTION_TOKEN else "",
     "Content-Type": "application/json",
     "Notion-Version": NOTION_VERSION
 }
@@ -46,6 +55,71 @@ ACTIVE_STATUSES = ["Watching", "Holding"]
 # Retry configuration
 MAX_RETRIES = 3
 RETRY_DELAY_SECONDS = 5  # Will use exponential backoff: 5, 10, 20 seconds
+
+# Cache file path (next to this script)
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CACHE_FILE = os.path.join(_SCRIPT_DIR, "last_watchlist.json")
+CACHE_MAX_AGE_HOURS = 24
+
+
+def _save_watchlist_cache(tickers: List[str]) -> None:
+    """Save a successful Notion response to local cache."""
+    try:
+        cache_data = {
+            "timestamp": datetime.now().isoformat(),
+            "tickers": tickers,
+        }
+        with open(CACHE_FILE, 'w') as f:
+            json.dump(cache_data, f, indent=2)
+        logger.debug(f"Cached {len(tickers)} tickers to {CACHE_FILE}")
+    except Exception as e:
+        logger.warning(f"Could not save watchlist cache: {e}")
+
+
+def _load_watchlist_cache() -> Optional[List[str]]:
+    """Load cached watchlist if it exists and is less than 24h old."""
+    try:
+        if not os.path.exists(CACHE_FILE):
+            return None
+        with open(CACHE_FILE, 'r') as f:
+            cache_data = json.load(f)
+        timestamp = datetime.fromisoformat(cache_data["timestamp"])
+        age = datetime.now() - timestamp
+        if age > timedelta(hours=CACHE_MAX_AGE_HOURS):
+            logger.warning(f"Watchlist cache is {age.total_seconds()/3600:.1f}h old (max {CACHE_MAX_AGE_HOURS}h). Ignoring.")
+            return None
+        tickers = cache_data.get("tickers", [])
+        if tickers:
+            logger.info(f"Loaded {len(tickers)} tickers from cache ({age.total_seconds()/60:.0f}m old)")
+        return tickers
+    except Exception as e:
+        logger.warning(f"Could not load watchlist cache: {e}")
+        return None
+
+
+def _load_config_watchlist() -> List[str]:
+    """Load tickers from config.yaml as a static fallback."""
+    try:
+        config_path = os.path.join(_SCRIPT_DIR, "config.yaml")
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        tickers = config.get('watchlist', [])
+        if tickers:
+            logger.info(f"Loaded {len(tickers)} tickers from config.yaml fallback")
+        else:
+            logger.error("config.yaml watchlist is empty!")
+        return tickers
+    except Exception as e:
+        logger.error(f"Could not load config.yaml watchlist: {e}")
+        return []
+
+
+def _get_fallback_watchlist() -> List[str]:
+    """Try cache first, then config.yaml."""
+    cached = _load_watchlist_cache()
+    if cached:
+        return cached
+    return _load_config_watchlist()
 
 
 def _request_with_retry(method: str, url: str, **kwargs) -> requests.Response:
@@ -80,6 +154,8 @@ def get_watchlist(statuses: List[str] = None) -> List[str]:
     """
     Fetch active tickers from Notion Stock Watchlist.
 
+    Falls back to cached data or config.yaml if Notion is unavailable.
+
     Args:
         statuses: List of status values to filter by.
                   Defaults to ACTIVE_STATUSES (Watching, Holding).
@@ -87,6 +163,11 @@ def get_watchlist(statuses: List[str] = None) -> List[str]:
     Returns:
         List of ticker symbols (e.g., ['NVDA', 'GOOGL', 'AMZN'])
     """
+    # If no Notion token, skip API call entirely
+    if not NOTION_TOKEN:
+        logger.warning("No NOTION_TOKEN available. Using fallback watchlist.")
+        return _get_fallback_watchlist()
+
     statuses = statuses or ACTIVE_STATUSES
 
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
@@ -115,9 +196,16 @@ def get_watchlist(statuses: List[str] = None) -> List[str]:
 
             response = _request_with_retry("POST", url, headers=HEADERS, json=payload)
 
+            if response.status_code == 401:
+                logger.critical(
+                    "NOTION TOKEN EXPIRED OR INVALID (401 Unauthorized). "
+                    "Update NOTION_TOKEN in .env file. Falling back to cached/config watchlist."
+                )
+                return _get_fallback_watchlist()
+
             if response.status_code != 200:
                 logger.error(f"Notion API error: {response.status_code} - {response.text[:200]}")
-                return []
+                return _get_fallback_watchlist()
 
             data = response.json()
 
@@ -133,17 +221,31 @@ def get_watchlist(statuses: List[str] = None) -> List[str]:
             has_more = data.get("has_more", False)
             start_cursor = data.get("next_cursor")
 
+        # If Notion returned 0 tickers but no error, something is wrong
+        if len(all_tickers) == 0:
+            logger.warning(
+                "Notion returned 0 tickers (no error). "
+                "Database may be empty or filter mismatch. Falling back."
+            )
+            return _get_fallback_watchlist()
+
         logger.info(f"Fetched {len(all_tickers)} tickers from Notion (statuses: {statuses})")
+
+        # Cache successful result
+        _save_watchlist_cache(all_tickers)
+
         return all_tickers
 
     except Exception as e:
         logger.error(f"Error fetching watchlist from Notion: {e}")
-        return []
+        return _get_fallback_watchlist()
 
 
 def get_watchlist_with_metadata(statuses: List[str] = None) -> List[Dict]:
     """
     Fetch active tickers with full metadata from Notion.
+
+    Falls back to ticker-only data from cache/config if Notion is unavailable.
 
     Returns:
         List of dicts with ticker info:
@@ -160,6 +262,14 @@ def get_watchlist_with_metadata(statuses: List[str] = None) -> List[Dict]:
             ...
         ]
     """
+    # If no Notion token, return ticker-only fallback
+    if not NOTION_TOKEN:
+        logger.warning("No NOTION_TOKEN available. Returning ticker-only fallback for metadata request.")
+        tickers = _get_fallback_watchlist()
+        return [{'ticker': t, 'company': t, 'sector': '', 'categories': [],
+                 'status': 'Unknown', 'sentiment': '', 'price_when_added': None,
+                 'current_price': None, 'page_id': None} for t in tickers]
+
     statuses = statuses or ACTIVE_STATUSES
 
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
@@ -187,9 +297,22 @@ def get_watchlist_with_metadata(statuses: List[str] = None) -> List[Dict]:
 
             response = _request_with_retry("POST", url, headers=HEADERS, json=payload)
 
+            if response.status_code == 401:
+                logger.critical(
+                    "NOTION TOKEN EXPIRED OR INVALID (401 Unauthorized). "
+                    "Update NOTION_TOKEN in .env file. Falling back to ticker-only data."
+                )
+                tickers = _get_fallback_watchlist()
+                return [{'ticker': t, 'company': t, 'sector': '', 'categories': [],
+                         'status': 'Unknown', 'sentiment': '', 'price_when_added': None,
+                         'current_price': None, 'page_id': None} for t in tickers]
+
             if response.status_code != 200:
                 logger.error(f"Notion API error: {response.status_code} - {response.text[:200]}")
-                return []
+                tickers = _get_fallback_watchlist()
+                return [{'ticker': t, 'company': t, 'sector': '', 'categories': [],
+                         'status': 'Unknown', 'sentiment': '', 'price_when_added': None,
+                         'current_price': None, 'page_id': None} for t in tickers]
 
             data = response.json()
 
@@ -248,12 +371,27 @@ def get_watchlist_with_metadata(statuses: List[str] = None) -> List[Dict]:
             has_more = data.get("has_more", False)
             start_cursor = data.get("next_cursor")
 
+        # If 0 results, fall back
+        if len(all_stocks) == 0:
+            logger.warning("Notion returned 0 stocks with metadata. Falling back.")
+            tickers = _get_fallback_watchlist()
+            return [{'ticker': t, 'company': t, 'sector': '', 'categories': [],
+                     'status': 'Unknown', 'sentiment': '', 'price_when_added': None,
+                     'current_price': None, 'page_id': None} for t in tickers]
+
         logger.info(f"Fetched {len(all_stocks)} stocks with metadata from Notion")
+
+        # Cache the tickers from successful metadata fetch too
+        _save_watchlist_cache([s['ticker'] for s in all_stocks])
+
         return all_stocks
 
     except Exception as e:
         logger.error(f"Error fetching watchlist metadata from Notion: {e}")
-        return []
+        tickers = _get_fallback_watchlist()
+        return [{'ticker': t, 'company': t, 'sector': '', 'categories': [],
+                 'status': 'Unknown', 'sentiment': '', 'price_when_added': None,
+                 'current_price': None, 'page_id': None} for t in tickers]
 
 
 def update_stock_price(page_id: str, current_price: float) -> bool:
@@ -267,6 +405,10 @@ def update_stock_price(page_id: str, current_price: float) -> bool:
     Returns:
         True if successful, False otherwise
     """
+    if not NOTION_TOKEN:
+        logger.error("Cannot update stock price: NOTION_TOKEN not available")
+        return False
+
     url = f"https://api.notion.com/v1/pages/{page_id}"
 
     payload = {
@@ -323,3 +465,8 @@ if __name__ == "__main__":
         print("\n3. Stocks by sector:")
         for sector, count in sorted(sectors.items(), key=lambda x: -x[1]):
             print(f"     {sector}: {count}")
+
+    # Test fallback
+    print("\n4. Testing config.yaml fallback...")
+    fallback = _load_config_watchlist()
+    print(f"   Config fallback has {len(fallback)} tickers")

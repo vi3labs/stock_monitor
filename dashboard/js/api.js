@@ -174,6 +174,40 @@ const API = (() => {
     }
   }
 
+  // SSE connection
+  let eventSource = null;
+  let onDataUpdate = null;
+
+  function connectSSE(callback) {
+    onDataUpdate = callback;
+    if (eventSource) {
+      eventSource.close();
+    }
+
+    eventSource = new EventSource(`${BASE_URL}/stream`);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('[API] SSE update received:', data.type);
+        if (onDataUpdate) onDataUpdate(data);
+      } catch (e) {
+        console.warn('[API] SSE parse error:', e);
+      }
+    };
+
+    eventSource.onerror = () => {
+      console.warn('[API] SSE connection lost, will auto-reconnect');
+    };
+  }
+
+  function disconnectSSE() {
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+  }
+
   return {
     getQuotes,
     getSectors,
@@ -182,6 +216,8 @@ const API = (() => {
     getNews,
     getAllData,
     checkHealth,
-    clearCache
+    clearCache,
+    connectSSE,
+    disconnectSSE
   };
 })();

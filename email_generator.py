@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 class EmailGenerator:
     """Generates HTML emails for stock reports with inline styles."""
 
+    # Truncation limits
+    MAX_NAME_LENGTH = 25
+    MAX_TITLE_LENGTH = 80
+    MAX_HEADLINE_LENGTH = 90
+
     # Color scheme
     COLORS = {
         'green': '#00C853',
@@ -117,7 +122,7 @@ class EmailGenerator:
     def _stock_row(self, symbol: str, name: str, price: float, change_pct: float, extra_info: str = "") -> str:
         """Generate a single stock row."""
         change_str, color = self._format_change(change_pct)
-        name_truncated = name[:25] + "..." if len(name) > 25 else name
+        name_truncated = name[:self.MAX_NAME_LENGTH] + "..." if len(name) > self.MAX_NAME_LENGTH else name
 
         return f"""
         <tr>
@@ -161,7 +166,7 @@ class EmailGenerator:
 
     def _news_item(self, symbol: str, title: str, source: str, link: str) -> str:
         """Generate a news item."""
-        title_truncated = title[:80] + "..." if len(title) > 80 else title
+        title_truncated = title[:self.MAX_TITLE_LENGTH] + "..." if len(title) > self.MAX_TITLE_LENGTH else title
         return f"""
         <tr>
             <td style="padding: 0 20px;">
@@ -180,7 +185,7 @@ class EmailGenerator:
 
     def _headline_item(self, title: str, source: str, link: str) -> str:
         """Generate a headline news item (no symbol badge)."""
-        title_truncated = title[:90] + "..." if len(title) > 90 else title
+        title_truncated = title[:self.MAX_HEADLINE_LENGTH] + "..." if len(title) > self.MAX_HEADLINE_LENGTH else title
         return f"""
         <tr>
             <td style="padding: 0 20px;">

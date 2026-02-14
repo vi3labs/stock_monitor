@@ -18,7 +18,9 @@ Run:
 
 import sys
 import os
+import json
 import logging
+import queue
 import threading
 import time
 from datetime import datetime
@@ -27,7 +29,7 @@ from typing import Dict, List, Tuple
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response, send_from_directory
 from flask_cors import CORS
 
 from data_fetcher import StockDataFetcher
@@ -43,11 +45,28 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Create Flask app
-app = Flask(__name__)
+DASHBOARD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'dashboard')
+app = Flask(__name__, static_folder=DASHBOARD_DIR, static_url_path='/dashboard')
 CORS(app)  # Enable CORS for frontend requests
 
 # Cache configuration
 CACHE_DURATION_MINUTES = 5
+
+# SSE clients
+_sse_clients = []
+
+
+def notify_sse_clients(data):
+    """Send data update to all connected SSE clients."""
+    dead_clients = []
+    for q in _sse_clients:
+        try:
+            q.put_nowait(data)
+        except Exception:
+            dead_clients.append(q)
+    for q in dead_clients:
+        if q in _sse_clients:
+            _sse_clients.remove(q)
 
 
 class DashboardDataService:
@@ -249,6 +268,39 @@ class DashboardDataService:
         news = fetcher.get_market_news()
         return news
 
+    def get_futures(self, force_refresh: bool = False) -> Dict:
+        """Get futures data (ES, NQ, YM, RTY)."""
+        if not force_refresh and hasattr(self, '_futures_cache') and self._is_cache_valid(getattr(self, '_futures_time', None)):
+            logger.info("Returning cached futures")
+            return self._futures_cache
+
+        logger.info("Fetching futures data...")
+        from data_fetcher import FuturesDataFetcher
+        fetcher = FuturesDataFetcher()
+        futures = fetcher.get_futures()
+        self._futures_cache = futures
+        self._futures_time = datetime.now()
+        logger.info(f"Fetched {len(futures)} futures")
+        return futures
+
+    def get_earnings(self, days_ahead: int = 14) -> List[Dict]:
+        """Get upcoming earnings calendar for watchlist stocks."""
+        if hasattr(self, '_earnings_cache') and self._is_cache_valid(getattr(self, '_earnings_time', None)):
+            logger.info("Returning cached earnings")
+            return self._earnings_cache
+
+        symbols = self.get_watchlist_symbols()
+        if not symbols:
+            return []
+
+        logger.info(f"Fetching earnings calendar ({days_ahead} days ahead)...")
+        fetcher = StockDataFetcher(symbols, cache_duration_minutes=CACHE_DURATION_MINUTES)
+        earnings = fetcher.get_earnings_calendar(days_ahead=days_ahead)
+        self._earnings_cache = earnings
+        self._earnings_time = datetime.now()
+        logger.info(f"Fetched {len(earnings)} earnings events")
+        return earnings
+
 
 # Create service instance
 data_service = DashboardDataService()
@@ -274,6 +326,13 @@ def background_refresh():
             _last_load_time = datetime.now()
             _is_loading = False
             logger.info("Background refresh: complete")
+
+            # Notify SSE clients
+            notify_sse_clients({
+                'type': 'refresh',
+                'timestamp': datetime.now().isoformat(),
+                'quotes_count': len(data_service._quotes_cache or {}),
+            })
 
         except Exception as e:
             logger.exception(f"Background refresh error: {e}")
@@ -362,6 +421,52 @@ def api_news():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/stream')
+def api_stream():
+    """SSE endpoint for real-time data updates."""
+    def event_stream():
+        q = queue.Queue()
+        _sse_clients.append(q)
+        try:
+            while True:
+                try:
+                    data = q.get(timeout=30)  # 30s keepalive
+                    yield f"data: {json.dumps(data)}\n\n"
+                except queue.Empty:
+                    yield ": keepalive\n\n"
+        except GeneratorExit:
+            pass
+        finally:
+            if q in _sse_clients:
+                _sse_clients.remove(q)
+
+    return Response(event_stream(), mimetype='text/event-stream',
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+
+@app.route('/api/futures', methods=['GET'])
+def api_futures():
+    """Get futures data (ES, NQ, YM, RTY)."""
+    try:
+        futures = data_service.get_futures()
+        return jsonify(futures)
+    except Exception as e:
+        logger.exception("Error fetching futures")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/earnings', methods=['GET'])
+def api_earnings():
+    """Get upcoming earnings calendar for watchlist stocks."""
+    try:
+        days = request.args.get('days', 14, type=int)
+        earnings = data_service.get_earnings(days)
+        return jsonify(earnings)
+    except Exception as e:
+        logger.exception("Error fetching earnings")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/all', methods=['GET'])
 def api_all():
     """
@@ -393,12 +498,28 @@ def api_all():
             logger.warning(f"Failed to fetch news: {news_error}")
             news = []
 
+        # Get futures (don't block if it fails)
+        try:
+            futures = data_service.get_futures()
+        except Exception as futures_error:
+            logger.warning(f"Failed to fetch futures: {futures_error}")
+            futures = {}
+
+        # Get earnings (don't block if it fails)
+        try:
+            earnings = data_service.get_earnings()
+        except Exception as earnings_error:
+            logger.warning(f"Failed to fetch earnings: {earnings_error}")
+            earnings = []
+
         return jsonify({
             'quotes': quotes,
             'sectors': sectors,
             'movers': movers,
             'indices': indices,
             'news': news,
+            'futures': futures,
+            'earnings': earnings,
             'timestamp': datetime.now().isoformat(),
             'loading': _is_loading
         })
@@ -423,16 +544,26 @@ def index():
     """Root endpoint with API info."""
     return jsonify({
         'name': 'Stock Monitor Dashboard API',
-        'version': '1.0.0',
+        'version': '1.1.0',
         'endpoints': {
+            '/api/all': 'All dashboard data in one request (fastest)',
             '/api/quotes': 'All watchlist quotes with sparkline data',
             '/api/sectors': 'Sector performance aggregated from quotes',
             '/api/movers': 'Top gainers and losers',
             '/api/indices': 'Market indices (S&P 500, NASDAQ, etc.)',
+            '/api/futures': 'Futures data (ES, NQ, YM, RTY)',
+            '/api/earnings': 'Upcoming earnings calendar for watchlist stocks',
             '/api/news': 'Latest market news',
+            '/api/stream': 'SSE endpoint for real-time data updates',
             '/api/health': 'Health check'
         }
     })
+
+
+@app.route('/dashboard/')
+def dashboard_index():
+    """Serve the dashboard UI."""
+    return send_from_directory(DASHBOARD_DIR, 'index.html')
 
 
 # ============================================================================
@@ -450,7 +581,10 @@ if __name__ == '__main__':
     print("  GET /api/sectors  - Sector performance")
     print("  GET /api/movers   - Top gainers/losers")
     print("  GET /api/indices  - Market indices")
+    print("  GET /api/futures  - Futures data (ES, NQ, YM, RTY)")
+    print("  GET /api/earnings - Upcoming earnings calendar")
     print("  GET /api/news     - Market news")
+    print("  GET /api/stream   - SSE real-time updates")
     print("  GET /api/health   - Health check")
     print("=" * 60)
     print("Starting background data warmup...")

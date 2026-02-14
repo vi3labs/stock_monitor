@@ -41,6 +41,14 @@ const App = (() => {
     // Wait for server to be ready, then load data
     await waitForServerAndLoad();
 
+    // Connect SSE for live updates
+    API.connectSSE((data) => {
+      if (data.type === 'refresh') {
+        console.log('[App] Server refreshed data, updating...');
+        refreshData(false);
+      }
+    });
+
     // Start auto-refresh if market is open
     startAutoRefresh();
 
@@ -49,6 +57,11 @@ const App = (() => {
 
     // Update market status every minute
     setInterval(updateMarketStatus, 60 * 1000);
+
+    // Register service worker for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
 
     console.log('[App] Initialization complete');
   }
@@ -371,6 +384,10 @@ const App = (() => {
         IndicesComponent.render(data.indices);
       }
 
+      if (data.futures) {
+        IndicesComponent.renderFutures(data.futures);
+      }
+
       if (data.sectors) {
         SectorsComponent.render(data.sectors);
       }
@@ -381,6 +398,10 @@ const App = (() => {
 
       if (data.movers) {
         MoversComponent.render(data.movers);
+      }
+
+      if (data.earnings) {
+        EarningsComponent.render(data.earnings);
       }
 
       if (data.news) {

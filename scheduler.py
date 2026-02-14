@@ -16,33 +16,15 @@ import schedule
 import time
 import logging
 import argparse
-import yaml
 from datetime import datetime
 import pytz
 import sys
 import os
 
-# Get the directory where this script lives (for absolute paths)
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+from config_loader import load_config, setup_logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(os.path.join(SCRIPT_DIR, 'stock_monitor.log')),
-        logging.StreamHandler()
-    ]
-)
+setup_logging()
 logger = logging.getLogger(__name__)
-
-
-def load_config(config_path: str = None) -> dict:
-    """Load configuration from YAML file."""
-    if config_path is None:
-        config_path = os.path.join(SCRIPT_DIR, 'config.yaml')
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
 
 
 def run_premarket():
@@ -76,25 +58,27 @@ def run_weekly():
 
 
 def is_market_day() -> bool:
-    """Check if today is a trading day (weekday, not a holiday)."""
-    now = datetime.now(pytz.timezone('America/New_York'))
-    
-    # Check if weekend
-    if now.weekday() >= 5:  # Saturday = 5, Sunday = 6
-        return False
-    
-    # Check for major US holidays (simplified)
-    # In production, you'd want a proper holiday calendar
-    major_holidays = [
-        (1, 1),   # New Year's Day
-        (7, 4),   # Independence Day
-        (12, 25), # Christmas
-    ]
-    
-    if (now.month, now.day) in major_holidays:
-        return False
-    
-    return True
+    """Check if today is a trading day using NYSE exchange calendar.
+
+    Covers all NYSE holidays including:
+    New Year's, MLK Day, Presidents Day, Good Friday, Memorial Day,
+    Juneteenth, Independence Day, Labor Day, Thanksgiving, Christmas,
+    and any ad-hoc closures.
+    """
+    try:
+        import exchange_calendars as xcals
+        import pandas as pd
+        nyse = xcals.get_calendar("XNYS")
+        now = datetime.now(pytz.timezone('America/New_York'))
+        return nyse.is_session(pd.Timestamp(now.date()))
+    except ImportError:
+        logger.warning("exchange_calendars not installed, using basic weekend check")
+        now = datetime.now(pytz.timezone('America/New_York'))
+        return now.weekday() < 5
+    except Exception as e:
+        logger.warning(f"Error checking market calendar: {e}, using basic weekend check")
+        now = datetime.now(pytz.timezone('America/New_York'))
+        return now.weekday() < 5
 
 
 def run_premarket_if_market_day():

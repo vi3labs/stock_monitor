@@ -6,6 +6,8 @@
   <meta name="theme-color" content="#0f1115">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <title>Stock Monitor Dashboard</title>
 
   <!-- Fonts -->
@@ -67,6 +69,11 @@
         <div class="index-card__change skeleton skeleton--text" style="width: 100px;"></div>
         <div class="index-card__sparkline skeleton skeleton--sparkline"></div>
       </div>
+    </section>
+
+    <!-- Futures Grid -->
+    <section class="indices-grid futures-grid" id="futures-grid" aria-label="Futures">
+      <!-- Futures cards populated by JavaScript -->
     </section>
 
     <!-- Main Content -->
@@ -193,6 +200,18 @@
           </div>
         </section>
 
+        <!-- Upcoming Earnings -->
+        <section class="section earnings-section" aria-label="Upcoming Earnings">
+          <div class="section__header">
+            <h2 class="section__title">Upcoming Earnings</h2>
+          </div>
+          <div class="section__content">
+            <div class="earnings-calendar" id="earnings-list">
+              <div class="empty-state"><p class="empty-state__message">Loading...</p></div>
+            </div>
+          </div>
+        </section>
+
         <!-- News Feed -->
         <section class="section news-section" aria-label="Market News">
           <div class="section__header">
@@ -296,6 +315,7 @@
   <script src="js/components/Watchlist.js"></script>
   <script src="js/components/Movers.js"></script>
   <script src="js/components/News.js"></script>
+  <script src="js/components/Earnings.js"></script>
   <script src="js/components/StockDetail.js"></script>
   <script src="js/app.js"></script>
 </body>

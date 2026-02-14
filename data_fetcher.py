@@ -12,6 +12,7 @@ Parallelization:
 
 import yfinance as yf
 import pandas as pd
+import datetime as datetime_module
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Callable, Any
 import logging
@@ -363,23 +364,36 @@ class StockDataFetcher:
                 # Try to get earnings dates from calendar
                 try:
                     cal = ticker.calendar
-                    if cal is not None and not cal.empty:
-                        if 'Earnings Date' in cal.index:
+                    if cal is not None:
+                        # yfinance 1.0+ returns dict, older versions return DataFrame
+                        if isinstance(cal, dict):
+                            earnings_dates = cal.get('Earnings Date', [])
+                            if not isinstance(earnings_dates, list):
+                                earnings_dates = [earnings_dates]
+                        elif hasattr(cal, 'empty') and not cal.empty and 'Earnings Date' in cal.index:
                             earnings_dates = cal.loc['Earnings Date']
                             if isinstance(earnings_dates, pd.Timestamp):
                                 earnings_dates = [earnings_dates]
+                        else:
+                            earnings_dates = []
 
-                            for date in earnings_dates:
-                                if isinstance(date, pd.Timestamp):
-                                    if date.date() <= cutoff_date:
-                                        if name is None:
-                                            name = ticker.info.get('shortName', symbol)
-                                        symbol_earnings.append({
-                                            'symbol': symbol,
-                                            'name': name,
-                                            'date': date.strftime('%Y-%m-%d'),
-                                            'time': 'TBD'
-                                        })
+                        for edate in earnings_dates:
+                            # Handle both datetime.date and pd.Timestamp
+                            if hasattr(edate, 'date'):
+                                edate_date = edate.date() if callable(getattr(edate, 'date')) else edate
+                            elif isinstance(edate, datetime_module.date):
+                                edate_date = edate
+                            else:
+                                continue
+                            if edate_date >= today and edate_date <= cutoff_date:
+                                if name is None:
+                                    name = ticker.info.get('shortName', symbol)
+                                symbol_earnings.append({
+                                    'symbol': symbol,
+                                    'name': name,
+                                    'date': edate_date.strftime('%Y-%m-%d'),
+                                    'time': 'TBD'
+                                })
                 except Exception:
                     pass
 

@@ -15,6 +15,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Grok API configuration
+GROK_MODEL = "grok-3-latest"
+GROK_MAX_TOKENS = 2000
+
 # The full signal digest prompt template
 SIGNAL_DIGEST_PROMPT = """You are generating a daily market signal digest for an investor-focused email newsletter.
 
@@ -96,7 +100,7 @@ class SignalAnalyzer:
     def __init__(self, api_key: str = None):
         self.api_key = api_key or os.environ.get('XAI_API_KEY')
         self.base_url = "https://api.x.ai/v1"
-        self.model = "grok-3-latest"
+        self.model = GROK_MODEL
 
         if not self.api_key:
             logger.warning("XAI_API_KEY not set - Signal analysis disabled")
@@ -130,7 +134,7 @@ class SignalAnalyzer:
                 json={
                     "model": self.model,
                     "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 2000,
+                    "max_tokens": GROK_MAX_TOKENS,
                     "temperature": 0.3
                 },
                 timeout=60
@@ -290,7 +294,7 @@ Return ONLY valid JSON matching this schema (no markdown, no extra text):
                     json={
                         "model": self.model,
                         "messages": [{"role": "user", "content": prompt}],
-                        "max_tokens": 2000,
+                        "max_tokens": GROK_MAX_TOKENS,
                         "temperature": 0.3,
                         "response_format": {"type": "json_object"}
                     },

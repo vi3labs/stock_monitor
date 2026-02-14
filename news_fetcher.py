@@ -18,6 +18,12 @@ from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
 
+# Truncation limits
+MAX_SUMMARY_LENGTH = 200
+
+# Grok API configuration
+GROK_MODEL = "grok-3-latest"
+
 
 class NewsFetcher:
     """Fetches news from multiple free sources."""
@@ -76,8 +82,8 @@ class NewsFetcher:
 
                     # Extract summary
                     summary = content.get('summary', '') or content.get('description', '')
-                    if len(summary) > 200:
-                        summary = summary[:200] + '...'
+                    if len(summary) > MAX_SUMMARY_LENGTH:
+                        summary = summary[:MAX_SUMMARY_LENGTH] + '...'
 
                     # Get link from canonical URL or click-through URL
                     link = ''
@@ -305,8 +311,8 @@ class NewsFetcher:
                         pub_date = datetime.now()
 
                     summary = content.get('summary', '') or content.get('description', '')
-                    if len(summary) > 200:
-                        summary = summary[:200] + '...'
+                    if len(summary) > MAX_SUMMARY_LENGTH:
+                        summary = summary[:MAX_SUMMARY_LENGTH] + '...'
 
                     link = ''
                     if content.get('canonicalUrl'):
@@ -467,7 +473,7 @@ class GrokNewsFetcher:
     def __init__(self, api_key: str = None):
         self.api_key = api_key or os.environ.get('XAI_API_KEY')
         self.base_url = "https://api.x.ai/v1"
-        self.model = "grok-3-latest"
+        self.model = GROK_MODEL
 
         if not self.api_key:
             logger.warning("XAI_API_KEY not set - Grok features disabled")
@@ -568,71 +574,6 @@ Focus on significant moves (>3%) with social buzz."""
                 'content': response
             }
         return None
-
-
-class EarningsNewsFetcher:
-    """Fetches earnings-related news and analysis."""
-    
-    def __init__(self):
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-        })
-    
-    def get_earnings_surprises(self, symbol: str) -> Optional[dict]:
-        """
-        Get recent earnings surprise data if available.
-        """
-        try:
-            import yfinance as yf
-            ticker = yf.Ticker(symbol)
-            
-            # Get earnings history
-            earnings = ticker.earnings_history
-            
-            if earnings is not None and not earnings.empty:
-                latest = earnings.iloc[-1]
-                return {
-                    'symbol': symbol,
-                    'eps_estimate': latest.get('epsEstimate'),
-                    'eps_actual': latest.get('epsActual'),
-                    'surprise': latest.get('surprise'),
-                    'surprise_percent': latest.get('surprisePercent'),
-                }
-        except Exception as e:
-            logger.warning(f"Error fetching earnings surprise for {symbol}: {e}")
-        
-        return None
-
-
-class FDACalendarFetcher:
-    """
-    Fetches FDA calendar events for biotech stocks.
-    Note: This is a simplified implementation. For production,
-    consider using a paid API like BioPharmCatalyst.
-    """
-    
-    # Known biotech stocks from watchlist that might have FDA events
-    BIOTECH_SYMBOLS = ['PRME']  # Add more as needed
-    
-    def get_fda_calendar(self, symbols: List[str]) -> List[dict]:
-        """
-        Get upcoming FDA events for biotech stocks.
-        This is a placeholder - real implementation would need
-        a specialized data source.
-        """
-        events = []
-        
-        biotech_in_watchlist = [s for s in symbols if s in self.BIOTECH_SYMBOLS]
-        
-        if biotech_in_watchlist:
-            logger.info("FDA calendar checking is enabled but requires manual updates or paid API")
-            # In a real implementation, you'd fetch from:
-            # - BioPharmCatalyst API
-            # - FDA RSS feeds
-            # - SEC filings
-        
-        return events
 
 
 if __name__ == "__main__":

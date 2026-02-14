@@ -6,7 +6,6 @@ Generates and sends the morning pre-market briefing email.
 Run this at 6:30 AM EST (before market open at 9:30 AM).
 """
 
-import yaml
 import logging
 from datetime import datetime
 import sys
@@ -15,6 +14,7 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from config_loader import load_config, setup_logging
 from data_fetcher import StockDataFetcher, FuturesDataFetcher, TrendsFetcher
 from news_fetcher import NewsFetcher
 from email_generator import EmailGenerator
@@ -22,22 +22,26 @@ from email_sender import EmailSenderFactory
 from notion_watchlist import get_watchlist
 from signal_analyzer import generate_signal_digest
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('stock_monitor.log'),
-        logging.StreamHandler()
-    ]
-)
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
-def load_config(config_path: str = 'config.yaml') -> dict:
-    """Load configuration from YAML file."""
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
+def _send_error_alert(config: dict, message: str):
+    """Send error alert email using existing email infrastructure."""
+    try:
+        from email_sender import EmailSenderFactory
+        sender = EmailSenderFactory.from_config(config)
+        email_config = config['email']
+        recipient = email_config.get('recipient_email', email_config.get('sender_email'))
+        html = f"""<div style="font-family: monospace; background: #1a1a2e; color: #f5f2eb; padding: 20px;">
+            <h2 style="color: #FF1744;">Stock Monitor Alert</h2>
+            <p>{message}</p>
+            <p>Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p>Action: Check Notion token and watchlist database.</p>
+        </div>"""
+        sender.send_email(recipient, f"[ALERT] Stock Monitor Error", html)
+    except Exception as e:
+        logger.error(f"Could not send error alert: {e}")
 
 
 def main():
@@ -51,7 +55,15 @@ def main():
         config = load_config()
         symbols = get_watchlist()  # Fetch from Notion (source of truth)
         email_config = config['email']
-        
+
+        if len(symbols) == 0:
+            logger.critical("ALERT: Watchlist returned 0 symbols! Aborting report.")
+            _send_error_alert(config, "Watchlist returned 0 symbols - Notion may be down or token expired")
+            return
+
+        if len(symbols) < 10:
+            logger.warning(f"ALERT: Only {len(symbols)} symbols returned (expected ~80+)")
+
         logger.info(f"Tracking {len(symbols)} symbols")
         
         # Initialize components
@@ -75,7 +87,10 @@ def main():
         logger.info("Fetching current quotes...")
         quotes = stock_fetcher.get_batch_quotes()
         logger.info(f"Got quotes for {len(quotes)} symbols")
-        
+
+        if len(quotes) < len(symbols) * 0.5:
+            logger.warning(f"Data quality issue: Only got quotes for {len(quotes)}/{len(symbols)} symbols")
+
         # Fetch earnings calendar
         logger.info("Fetching earnings calendar...")
         earnings = stock_fetcher.get_earnings_calendar(days_ahead=14)
