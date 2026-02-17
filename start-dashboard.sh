@@ -11,7 +11,7 @@
 #
 # Ports:
 #   API:      http://localhost:5001
-#   Frontend: http://localhost:3004
+#   Frontend: http://localhost:3006
 
 set -e
 
@@ -27,7 +27,7 @@ NC='\033[0m' # No Color
 
 # Ports
 API_PORT=5001
-WEB_PORT=3004
+WEB_PORT=3006
 
 # PIDs for cleanup
 API_PID=""
