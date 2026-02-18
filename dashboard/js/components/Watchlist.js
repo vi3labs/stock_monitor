@@ -150,7 +150,8 @@ const WatchlistComponent = (() => {
         const searchFields = [
           stock.symbol,
           stock.name,
-          stock.sector
+          stock.sector,
+          stock.sentiment
         ].filter(Boolean).join(' ').toLowerCase();
 
         if (!searchFields.includes(searchTerm)) {
@@ -187,7 +188,7 @@ const WatchlistComponent = (() => {
     if (filtered.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="6" class="empty-state">
+          <td colspan="7" class="empty-state">
             <p class="empty-state__message">No stocks found matching your criteria</p>
           </td>
         </tr>
@@ -226,12 +227,20 @@ const WatchlistComponent = (() => {
     // Format change
     const changeDisplay = `${sign}${(stock.change_percent || 0).toFixed(2)}%`;
 
+    // Sentiment badge
+    const sentiment = stock.sentiment || '';
+    const sentimentClass = sentiment ? sentiment.toLowerCase() : 'neutral';
+    const sentimentHtml = sentiment
+      ? `<span class="sentiment-badge sentiment-badge--${sentimentClass}">${sentiment}</span>`
+      : '';
+
     return `
       <tr data-symbol="${stock.symbol}" data-index="${index}" class="watchlist-row${isSelected ? ' watchlist-row--selected' : ''}" tabindex="-1">
         <td class="symbol">${stock.symbol}</td>
         <td class="name truncate" title="${stock.name || stock.symbol}">${stock.name || stock.symbol}</td>
         <td class="price">${priceDisplay}</td>
         <td class="change ${changeClass}">${changeDisplay}</td>
+        <td class="sentiment-cell">${sentimentHtml}</td>
         <td class="sparkline-cell">
           <canvas id="watch-sparkline-${stock.symbol}" width="80" height="24"></canvas>
         </td>
@@ -276,6 +285,11 @@ const WatchlistComponent = (() => {
         case 'sector':
           aVal = a.sector || '';
           bVal = b.sector || '';
+          return aVal.localeCompare(bVal) * modifier;
+
+        case 'sentiment':
+          aVal = a.sentiment || '';
+          bVal = b.sentiment || '';
           return aVal.localeCompare(bVal) * modifier;
 
         default:
@@ -338,6 +352,7 @@ const WatchlistComponent = (() => {
         <td><span class="skeleton skeleton--text" style="width: 50px;"></span></td>
         <td><span class="skeleton skeleton--text" style="width: 150px;"></span></td>
         <td><span class="skeleton skeleton--text" style="width: 70px;"></span></td>
+        <td><span class="skeleton skeleton--text" style="width: 60px;"></span></td>
         <td><span class="skeleton skeleton--text" style="width: 60px;"></span></td>
         <td><span class="skeleton skeleton--sparkline"></span></td>
         <td><span class="skeleton skeleton--text" style="width: 80px;"></span></td>

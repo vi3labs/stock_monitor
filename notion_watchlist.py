@@ -311,7 +311,8 @@ def get_watchlist_with_metadata(statuses: List[str] = None) -> List[Dict]:
                 logger.error(f"Notion API error: {response.status_code} - {response.text[:200]}")
                 tickers = _get_fallback_watchlist()
                 return [{'ticker': t, 'company': t, 'sector': '', 'categories': [],
-                         'status': 'Unknown', 'sentiment': '', 'price_when_added': None,
+                         'status': 'Unknown', 'sentiment': '', 'investment_thesis': '',
+                         'catalysts': '', 'price_when_added': None,
                          'current_price': None, 'page_id': None} for t in tickers]
 
             data = response.json()
@@ -356,6 +357,16 @@ def get_watchlist_with_metadata(statuses: List[str] = None) -> List[Dict]:
                 current_prop = props.get("Current Price", {})
                 current_price = current_prop.get("number")
 
+                # Extract investment thesis
+                thesis_prop = props.get("Investment Thesis", {})
+                thesis_array = thesis_prop.get("rich_text", [])
+                investment_thesis = thesis_array[0].get("text", {}).get("content", "") if thesis_array else ""
+
+                # Extract catalysts
+                catalysts_prop = props.get("Catalysts", {})
+                catalysts_array = catalysts_prop.get("rich_text", [])
+                catalysts = catalysts_array[0].get("text", {}).get("content", "") if catalysts_array else ""
+
                 all_stocks.append({
                     'ticker': ticker,
                     'company': company,
@@ -363,6 +374,8 @@ def get_watchlist_with_metadata(statuses: List[str] = None) -> List[Dict]:
                     'categories': categories,
                     'status': status,
                     'sentiment': sentiment,
+                    'investment_thesis': investment_thesis,
+                    'catalysts': catalysts,
                     'price_when_added': price_when_added,
                     'current_price': current_price,
                     'page_id': page.get("id"),
@@ -376,7 +389,8 @@ def get_watchlist_with_metadata(statuses: List[str] = None) -> List[Dict]:
             logger.warning("Notion returned 0 stocks with metadata. Falling back.")
             tickers = _get_fallback_watchlist()
             return [{'ticker': t, 'company': t, 'sector': '', 'categories': [],
-                     'status': 'Unknown', 'sentiment': '', 'price_when_added': None,
+                     'status': 'Unknown', 'sentiment': '', 'investment_thesis': '',
+                     'catalysts': '', 'price_when_added': None,
                      'current_price': None, 'page_id': None} for t in tickers]
 
         logger.info(f"Fetched {len(all_stocks)} stocks with metadata from Notion")

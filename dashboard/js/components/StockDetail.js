@@ -208,6 +208,8 @@ const StockDetailComponent = (() => {
           </div>
         </div>
 
+        ${renderThesisSection(stock)}
+
         <div class="stock-detail__actions">
           <a href="${yahooUrl}" target="_blank" rel="noopener noreferrer" class="btn btn--primary">
             <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -218,6 +220,33 @@ const StockDetailComponent = (() => {
             View on Yahoo Finance
           </a>
         </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Render the thesis/catalysts section for the detail modal
+   */
+  function renderThesisSection(stock) {
+    const sentiment = stock.sentiment || '';
+    const status = stock.status || '';
+    const thesis = stock.investment_thesis || '';
+    const catalysts = stock.catalysts || '';
+
+    // Don't render the section if there's nothing to show
+    if (!sentiment && !status && !thesis && !catalysts) return '';
+
+    const sentimentClass = sentiment ? sentiment.toLowerCase() : 'neutral';
+    const statusClass = status ? status.toLowerCase() : '';
+
+    return `
+      <div class="stock-detail__thesis">
+        <div class="stock-detail__thesis-header">
+          ${sentiment ? `<span class="sentiment-badge sentiment-badge--${sentimentClass}">${escapeHtml(sentiment)}</span>` : ''}
+          ${status ? `<span class="sentiment-badge status-badge--${statusClass}">${escapeHtml(status)}</span>` : ''}
+        </div>
+        ${thesis ? `<div class="stock-detail__thesis-text"><strong>Thesis:</strong> ${escapeHtml(thesis)}</div>` : ''}
+        ${catalysts ? `<div class="stock-detail__catalysts-text"><strong>Catalysts:</strong> ${escapeHtml(catalysts)}</div>` : ''}
       </div>
     `;
   }

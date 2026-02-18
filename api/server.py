@@ -157,6 +157,10 @@ class DashboardDataService:
                 'volume_ratio': quote.get('volume_ratio', 1.0),
                 'market_cap': quote.get('market_cap', 0),
                 'sector': sector,
+                'sentiment': meta_info.get('sentiment', ''),
+                'status': meta_info.get('status', ''),
+                'investment_thesis': meta_info.get('investment_thesis', ''),
+                'catalysts': meta_info.get('catalysts', ''),
                 'daily_closes': week.get('daily_closes', []),
                 'week_change_percent': week.get('week_change_percent', 0),
             }
