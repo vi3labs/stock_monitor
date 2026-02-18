@@ -19,6 +19,7 @@ from data_fetcher import StockDataFetcher
 from email_generator import EmailGenerator
 from email_sender import EmailSenderFactory
 from notion_watchlist import get_watchlist
+from network_check import wait_for_network
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -192,7 +193,11 @@ def main():
     logger.info("=" * 50)
     logger.info("Starting Weekly Summary Report Generation")
     logger.info("=" * 50)
-    
+
+    if not wait_for_network():
+        logger.error("Aborting weekly report: no network connectivity")
+        return
+
     try:
         # Load configuration
         config = load_config()

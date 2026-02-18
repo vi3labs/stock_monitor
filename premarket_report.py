@@ -21,6 +21,7 @@ from email_generator import EmailGenerator
 from email_sender import EmailSenderFactory
 from notion_watchlist import get_watchlist
 from signal_analyzer import generate_signal_digest
+from network_check import wait_for_network
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -49,7 +50,11 @@ def main():
     logger.info("=" * 50)
     logger.info("Starting Pre-Market Report Generation")
     logger.info("=" * 50)
-    
+
+    if not wait_for_network():
+        logger.error("Aborting pre-market report: no network connectivity")
+        return
+
     try:
         # Load configuration
         config = load_config()
