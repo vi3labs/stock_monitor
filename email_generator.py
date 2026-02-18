@@ -22,17 +22,31 @@ class EmailGenerator:
     MAX_TITLE_LENGTH = 80
     MAX_HEADLINE_LENGTH = 90
 
-    # Color scheme
+    # Light mode colors (inline defaults — works in all email clients)
     COLORS = {
-        'green': '#00C853',
-        'red': '#FF1744',
-        'neutral': '#9E9E9E',
+        'green': '#16A34A',
+        'red': '#DC2626',
+        'neutral': '#6B7280',
+        'bg_dark': '#F3F4F6',
+        'bg_card': '#FFFFFF',
+        'bg_section': '#F0F1F3',
+        'text_primary': '#111827',
+        'text_secondary': '#6B7280',
+        'accent': '#4F46E5',
+        'border': '#E5E7EB',
+    }
+
+    # Dark mode colors (applied via @media prefers-color-scheme)
+    COLORS_DARK = {
+        'green': '#34D399',
+        'red': '#F87171',
+        'neutral': '#9CA3AF',
         'bg_dark': '#1a1a2e',
         'bg_card': '#16213e',
         'bg_section': '#1e2a47',
-        'text_primary': '#ffffff',
-        'text_secondary': '#a0a0a0',
-        'accent': '#4fc3f7',
+        'text_primary': '#F9FAFB',
+        'text_secondary': '#9CA3AF',
+        'accent': '#818CF8',
         'border': '#2d3748',
     }
 
@@ -58,16 +72,40 @@ class EmailGenerator:
             return f"${price:.4f}"
 
     def _base_wrapper(self, content: str) -> str:
-        """Wrap content in base HTML with inline styles."""
+        """Wrap content in base HTML with inline light styles and dark mode media query."""
+        d = self.COLORS_DARK
         return f"""
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
+    <style>
+        :root {{ color-scheme: light dark; }}
+        @media (prefers-color-scheme: dark) {{
+            body, .body-bg {{ background-color: {d['bg_dark']} !important; }}
+            .card-bg {{ background-color: {d['bg_card']} !important; }}
+            .section-bg {{ background-color: {d['bg_section']} !important; }}
+            .text-primary {{ color: {d['text_primary']} !important; }}
+            .text-secondary {{ color: {d['text_secondary']} !important; }}
+            .text-accent {{ color: {d['accent']} !important; }}
+            .border-b {{ border-bottom-color: {d['border']} !important; }}
+            .border-t {{ border-top-color: {d['border']} !important; }}
+            .text-green {{ color: {d['green']} !important; }}
+            .text-red {{ color: {d['red']} !important; }}
+            .text-neutral {{ color: {d['neutral']} !important; }}
+            .bg-green-subtle {{ background-color: {d['green']}20 !important; }}
+            .bg-red-subtle {{ background-color: {d['red']}20 !important; }}
+            .bg-accent-subtle {{ background-color: {d['accent']}30 !important; }}
+            .accent-border-left {{ border-left-color: {d['accent']} !important; }}
+            .footer-bg {{ background-color: rgba(0,0,0,0.3) !important; }}
+        }}
+    </style>
 </head>
-<body style="margin: 0; padding: 20px; background-color: {self.c['bg_dark']}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
-    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: {self.c['bg_card']}; border-radius: 12px; overflow: hidden;">
+<body class="body-bg" style="margin: 0; padding: 20px; background-color: {self.c['bg_dark']}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" class="card-bg" style="max-width: 600px; margin: 0 auto; background-color: {self.c['bg_card']}; border-radius: 12px; overflow: hidden;">
         {content}
     </table>
 </body>
@@ -78,7 +116,7 @@ class EmailGenerator:
         """Generate header section."""
         return f"""
         <tr>
-            <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+            <td style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 30px; text-align: center;">
                 <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">{title}</h1>
                 <p style="margin: 8px 0 0 0; color: #ffffff; font-size: 14px; opacity: 0.9;">{subtitle}</p>
             </td>
@@ -90,7 +128,7 @@ class EmailGenerator:
         return f"""
         <tr>
             <td style="padding: 20px 20px 10px 20px;">
-                <h2 style="margin: 0; color: {self.c['accent']}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">{title}</h2>
+                <h2 class="text-accent" style="margin: 0; color: {self.c['accent']}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">{title}</h2>
             </td>
         </tr>
 """
@@ -102,10 +140,11 @@ class EmailGenerator:
 
         for item in items:
             change_str, color = self._format_change(item.get('change_percent', 0))
+            color_class = 'text-green' if item.get('change_percent', 0) > 0 else ('text-red' if item.get('change_percent', 0) < 0 else 'text-neutral')
             cells += f"""
-                <td width="{cell_width}%" style="padding: 8px; text-align: center; background-color: {self.c['bg_section']}; border-radius: 8px;">
-                    <div style="color: {self.c['text_secondary']}; font-size: 11px; margin-bottom: 4px;">{item['name']}</div>
-                    <div style="color: {color}; font-size: 16px; font-weight: 600;">{change_str}</div>
+                <td width="{cell_width}%" class="section-bg" style="padding: 8px; text-align: center; background-color: {self.c['bg_section']}; border-radius: 8px;">
+                    <div class="text-secondary" style="color: {self.c['text_secondary']}; font-size: 11px; margin-bottom: 4px;">{item['name']}</div>
+                    <div class="{color_class}" style="color: {color}; font-size: 16px; font-weight: 600;">{change_str}</div>
                 </td>
 """
 
@@ -123,20 +162,22 @@ class EmailGenerator:
         """Generate a single stock row."""
         change_str, color = self._format_change(change_pct)
         name_truncated = name[:self.MAX_NAME_LENGTH] + "..." if len(name) > self.MAX_NAME_LENGTH else name
+        color_class = 'text-green' if change_pct > 0 else ('text-red' if change_pct < 0 else 'text-neutral')
+        bg_class = 'bg-green-subtle' if change_pct > 0 else ('bg-red-subtle' if change_pct < 0 else '')
 
         return f"""
         <tr>
             <td style="padding: 0 20px;">
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-bottom: 1px solid {self.c['border']};">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="border-b" style="border-bottom: 1px solid {self.c['border']};">
                     <tr>
                         <td style="padding: 12px 0;">
-                            <div style="color: {self.c['text_primary']}; font-size: 15px; font-weight: 600;">{symbol}</div>
-                            <div style="color: {self.c['text_secondary']}; font-size: 12px;">{name_truncated}</div>
+                            <div class="text-primary" style="color: {self.c['text_primary']}; font-size: 15px; font-weight: 600;">{symbol}</div>
+                            <div class="text-secondary" style="color: {self.c['text_secondary']}; font-size: 12px;">{name_truncated}</div>
                         </td>
                         <td style="padding: 12px 0; text-align: right;">
-                            <div style="color: {self.c['text_primary']}; font-size: 15px;">{self._format_price(price)}</div>
-                            <div style="display: inline-block; padding: 2px 8px; border-radius: 4px; background-color: {color}20; color: {color}; font-size: 13px; font-weight: 600;">{change_str}</div>
-                            {f'<div style="color: {self.c["text_secondary"]}; font-size: 11px; margin-top: 2px;">{extra_info}</div>' if extra_info else ''}
+                            <div class="text-primary" style="color: {self.c['text_primary']}; font-size: 15px;">{self._format_price(price)}</div>
+                            <div class="{color_class} {bg_class}" style="display: inline-block; padding: 2px 8px; border-radius: 4px; background-color: {color}20; color: {color}; font-size: 13px; font-weight: 600;">{change_str}</div>
+                            {f'<div class="text-secondary" style="color: {self.c["text_secondary"]}; font-size: 11px; margin-top: 2px;">{extra_info}</div>' if extra_info else ''}
                         </td>
                     </tr>
                 </table>
@@ -149,14 +190,14 @@ class EmailGenerator:
         return f"""
         <tr>
             <td style="padding: 0 20px;">
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-bottom: 1px solid {self.c['border']};">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="border-b" style="border-bottom: 1px solid {self.c['border']};">
                     <tr>
                         <td width="70" style="padding: 10px 0;">
-                            <div style="background-color: {self.c['accent']}30; color: {self.c['accent']}; padding: 8px; border-radius: 6px; font-size: 12px; font-weight: 600; text-align: center;">{date_str}</div>
+                            <div class="bg-accent-subtle text-accent" style="background-color: {self.c['accent']}30; color: {self.c['accent']}; padding: 8px; border-radius: 6px; font-size: 12px; font-weight: 600; text-align: center;">{date_str}</div>
                         </td>
                         <td style="padding: 10px 0 10px 12px;">
-                            <div style="color: {self.c['text_primary']}; font-size: 14px; font-weight: 600;">{symbol}</div>
-                            <div style="color: {self.c['text_secondary']}; font-size: 12px;">{event}</div>
+                            <div class="text-primary" style="color: {self.c['text_primary']}; font-size: 14px; font-weight: 600;">{symbol}</div>
+                            <div class="text-secondary" style="color: {self.c['text_secondary']}; font-size: 12px;">{event}</div>
                         </td>
                     </tr>
                 </table>
@@ -170,12 +211,12 @@ class EmailGenerator:
         return f"""
         <tr>
             <td style="padding: 0 20px;">
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-bottom: 1px solid {self.c['border']};">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="border-b" style="border-bottom: 1px solid {self.c['border']};">
                     <tr>
                         <td style="padding: 12px 0;">
-                            <div style="color: {self.c['accent']}; font-size: 11px; font-weight: 600; margin-bottom: 4px;">{symbol}</div>
-                            <a href="{link}" style="color: {self.c['text_primary']}; font-size: 13px; text-decoration: none;">{title_truncated}</a>
-                            <div style="color: {self.c['text_secondary']}; font-size: 11px; margin-top: 4px;">{source}</div>
+                            <div class="text-accent" style="color: {self.c['accent']}; font-size: 11px; font-weight: 600; margin-bottom: 4px;">{symbol}</div>
+                            <a href="{link}" class="text-primary" style="color: {self.c['text_primary']}; font-size: 13px; text-decoration: none;">{title_truncated}</a>
+                            <div class="text-secondary" style="color: {self.c['text_secondary']}; font-size: 11px; margin-top: 4px;">{source}</div>
                         </td>
                     </tr>
                 </table>
@@ -189,11 +230,11 @@ class EmailGenerator:
         return f"""
         <tr>
             <td style="padding: 0 20px;">
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-bottom: 1px solid {self.c['border']};">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="border-b" style="border-bottom: 1px solid {self.c['border']};">
                     <tr>
                         <td style="padding: 10px 0;">
-                            <a href="{link}" style="color: {self.c['text_primary']}; font-size: 13px; text-decoration: none; line-height: 1.4;">{title_truncated}</a>
-                            <div style="color: {self.c['text_secondary']}; font-size: 11px; margin-top: 4px;">{source}</div>
+                            <a href="{link}" class="text-primary" style="color: {self.c['text_primary']}; font-size: 13px; text-decoration: none; line-height: 1.4;">{title_truncated}</a>
+                            <div class="text-secondary" style="color: {self.c['text_secondary']}; font-size: 11px; margin-top: 4px;">{source}</div>
                         </td>
                     </tr>
                 </table>
@@ -205,17 +246,26 @@ class EmailGenerator:
         """Generate a summary statistics box."""
         rows = ""
         for label, value, color in stats:
+            # Determine CSS class for the value color
+            if color == self.c['green']:
+                val_class = 'text-green'
+            elif color == self.c['red']:
+                val_class = 'text-red'
+            elif color == self.c['text_primary']:
+                val_class = 'text-primary'
+            else:
+                val_class = ''
             rows += f"""
                 <tr>
-                    <td style="padding: 6px 0; color: {self.c['text_secondary']}; font-size: 13px;">{label}</td>
-                    <td style="padding: 6px 0; text-align: right; color: {color}; font-size: 14px; font-weight: 600;">{value}</td>
+                    <td class="text-secondary" style="padding: 6px 0; color: {self.c['text_secondary']}; font-size: 13px;">{label}</td>
+                    <td class="{val_class}" style="padding: 6px 0; text-align: right; color: {color}; font-size: 14px; font-weight: 600;">{value}</td>
                 </tr>
 """
 
         return f"""
         <tr>
             <td style="padding: 0 20px 20px 20px;">
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: {self.c['bg_section']}; border-radius: 8px; padding: 16px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="section-bg" style="background-color: {self.c['bg_section']}; border-radius: 8px; padding: 16px;">
                     <tr><td>
                         <table cellpadding="0" cellspacing="0" border="0" width="100%" style="padding: 12px;">
                             {rows}
@@ -250,17 +300,19 @@ class EmailGenerator:
 
         for sector, avg in notable_sectors:
             color = self.c['green'] if avg > 0 else self.c['red']
+            color_class = 'text-green' if avg > 0 else 'text-red'
+            bg_class = 'bg-green-subtle' if avg > 0 else 'bg-red-subtle'
             bar_width = int(min(abs(avg) / max_abs * 60, 60))  # Max 60% width
             change_str = f"+{avg:.2f}%" if avg > 0 else f"{avg:.2f}%"
 
             rows += f"""
                 <tr>
                     <td style="padding: 8px 0; width: 120px;">
-                        <span style="color: {self.c['text_primary']}; font-size: 13px;">{sector}</span>
+                        <span class="text-primary" style="color: {self.c['text_primary']}; font-size: 13px;">{sector}</span>
                     </td>
                     <td style="padding: 8px 0;">
-                        <div style="background-color: {color}30; height: 20px; width: {bar_width}%; border-radius: 4px; display: inline-block;"></div>
-                        <span style="color: {color}; font-size: 13px; font-weight: 600; margin-left: 8px;">{change_str}</span>
+                        <div class="{bg_class}" style="background-color: {color}30; height: 20px; width: {bar_width}%; border-radius: 4px; display: inline-block;"></div>
+                        <span class="{color_class}" style="color: {color}; font-size: 13px; font-weight: 600; margin-left: 8px;">{change_str}</span>
                     </td>
                 </tr>
 """
@@ -268,7 +320,7 @@ class EmailGenerator:
         return f"""
         <tr>
             <td style="padding: 0 20px 20px 20px;">
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: {self.c['bg_section']}; border-radius: 8px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="section-bg" style="background-color: {self.c['bg_section']}; border-radius: 8px;">
                     <tr><td style="padding: 16px;">
                         <table cellpadding="0" cellspacing="0" border="0" width="100%">
                             {rows}
@@ -318,7 +370,7 @@ class EmailGenerator:
             content += f"""
         <tr>
             <td style="padding: 12px 20px 4px 20px;">
-                <span style="color: {self.c['accent']}; font-size: 12px; font-weight: 600; text-transform: uppercase;">{sector}</span>
+                <span class="text-accent" style="color: {self.c['accent']}; font-size: 12px; font-weight: 600; text-transform: uppercase;">{sector}</span>
             </td>
         </tr>
 """
@@ -328,16 +380,17 @@ class EmailGenerator:
                 if abs(change_pct) < 0.5:
                     continue
                 change_str, color = self._format_change(change_pct)
+                color_class = 'text-green' if change_pct > 0 else 'text-red'
                 content += f"""
         <tr>
             <td style="padding: 0 20px;">
                 <table cellpadding="0" cellspacing="0" border="0" width="100%">
                     <tr>
                         <td style="padding: 6px 0;">
-                            <span style="color: {self.c['text_primary']}; font-size: 14px; font-weight: 500;">{stock['symbol']}</span>
+                            <span class="text-primary" style="color: {self.c['text_primary']}; font-size: 14px; font-weight: 500;">{stock['symbol']}</span>
                         </td>
                         <td style="padding: 6px 0; text-align: right;">
-                            <span style="color: {color}; font-size: 14px; font-weight: 600;">{change_str}</span>
+                            <span class="{color_class}" style="color: {color}; font-size: 14px; font-weight: 600;">{change_str}</span>
                         </td>
                     </tr>
                 </table>
@@ -352,8 +405,8 @@ class EmailGenerator:
         """Generate footer."""
         return f"""
         <tr>
-            <td style="padding: 20px; text-align: center; background-color: rgba(0,0,0,0.3); border-top: 1px solid {self.c['border']};">
-                <p style="margin: 0; color: {self.c['text_secondary']}; font-size: 12px;">Generated by Stock Monitor • Data from Yahoo Finance</p>
+            <td class="footer-bg section-bg border-t" style="padding: 20px; text-align: center; background-color: {self.c['bg_section']}; border-top: 1px solid {self.c['border']};">
+                <p class="text-secondary" style="margin: 0; color: {self.c['text_secondary']}; font-size: 12px;">Generated by Stock Monitor &bull; Data from Yahoo Finance</p>
             </td>
         </tr>
 """
@@ -381,38 +434,36 @@ class EmailGenerator:
             if line.startswith('**') and line.endswith('**'):
                 header_text = line.strip('*').strip()
                 html_parts.append(
-                    f'<div style="color: {self.c["accent"]}; font-size: 14px; font-weight: 600; '
+                    f'<div class="text-accent" style="color: {self.c["accent"]}; font-size: 14px; font-weight: 600; '
                     f'margin: 16px 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px;">{header_text}</div>'
                 )
             # Blockquotes: > text (insights)
             elif line.startswith('>'):
                 quote_text = line.lstrip('>').strip()
-                # Process inline bold
                 quote_text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', quote_text)
                 html_parts.append(
-                    f'<div style="border-left: 3px solid {self.c["accent"]}; padding: 8px 12px; '
+                    f'<div class="accent-border-left section-bg text-primary" style="border-left: 3px solid {self.c["accent"]}; padding: 8px 12px; '
                     f'margin: 4px 0; background-color: {self.c["bg_section"]}; border-radius: 0 6px 6px 0; '
                     f'color: {self.c["text_primary"]}; font-size: 13px; font-style: italic;">{quote_text}</div>'
                 )
             # Bullet points: * text or - text
             elif line.startswith('* ') or line.startswith('- '):
                 bullet_text = line[2:].strip()
-                # Process inline bold
                 bullet_text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', bullet_text)
                 html_parts.append(
-                    f'<div style="color: {self.c["text_primary"]}; font-size: 13px; padding: 3px 0 3px 16px; '
+                    f'<div class="text-primary" style="color: {self.c["text_primary"]}; font-size: 13px; padding: 3px 0 3px 16px; '
                     f'line-height: 1.5;">&#8226; {bullet_text}</div>'
                 )
             # Separator lines: ---
             elif line.startswith('---'):
                 html_parts.append(
-                    f'<hr style="border: none; border-top: 1px solid {self.c["border"]}; margin: 12px 0;" />'
+                    f'<hr class="border-t" style="border: none; border-top: 1px solid {self.c["border"]}; margin: 12px 0;" />'
                 )
             # Regular text with possible inline formatting
             else:
                 processed = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line)
                 html_parts.append(
-                    f'<div style="color: {self.c["text_secondary"]}; font-size: 13px; '
+                    f'<div class="text-secondary" style="color: {self.c["text_secondary"]}; font-size: 13px; '
                     f'padding: 2px 0; line-height: 1.5;">{processed}</div>'
                 )
 
@@ -421,7 +472,7 @@ class EmailGenerator:
         return f"""
         <tr>
             <td style="padding: 0 20px 20px 20px;">
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: {self.c['bg_section']}; border-radius: 8px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="section-bg" style="background-color: {self.c['bg_section']}; border-radius: 8px;">
                     <tr><td style="padding: 16px;">
                         {inner_html}
                     </td></tr>
@@ -440,7 +491,7 @@ class EmailGenerator:
 
         if not voices:
             html_parts.append(
-                f'<div style="color: {self.c["text_secondary"]}; font-size: 13px; '
+                f'<div class="text-secondary" style="color: {self.c["text_secondary"]}; font-size: 13px; '
                 f'font-style: italic; padding: 8px 0;">No meaningful signals detected</div>'
             )
         else:
@@ -450,7 +501,7 @@ class EmailGenerator:
                 'Sideways': self.c['neutral']
             }
             tone_colors = {
-                'Cautious': '#FFA726',
+                'Cautious': '#D97706',
                 'Neutral': self.c['neutral'],
                 'Constructive': self.c['green']
             }
@@ -463,22 +514,22 @@ class EmailGenerator:
 
                 html_parts.append(f"""
                     <div style="margin-bottom: 16px;">
-                        <div style="color: {self.c['text_primary']}; font-size: 14px; font-weight: 600; margin-bottom: 2px;">{voice.get('name', '')}</div>
-                        <div style="color: {self.c['text_secondary']}; font-size: 11px; margin-bottom: 6px;">{voice.get('source', '')} &bull; {voice.get('date', '')}</div>
-                        <div style="border-left: 3px solid {self.c['accent']}; padding: 6px 12px; background-color: rgba(0,0,0,0.2); border-radius: 0 6px 6px 0; color: {self.c['text_primary']}; font-size: 13px; font-style: italic; margin-bottom: 6px;">{voice.get('insight', '')}</div>
+                        <div class="text-primary" style="color: {self.c['text_primary']}; font-size: 14px; font-weight: 600; margin-bottom: 2px;">{voice.get('name', '')}</div>
+                        <div class="text-secondary" style="color: {self.c['text_secondary']}; font-size: 11px; margin-bottom: 6px;">{voice.get('source', '')} &bull; {voice.get('date', '')}</div>
+                        <div class="accent-border-left section-bg text-primary" style="border-left: 3px solid {self.c['accent']}; padding: 6px 12px; background-color: {self.c['bg_section']}; border-radius: 0 6px 6px 0; color: {self.c['text_primary']}; font-size: 13px; font-style: italic; margin-bottom: 6px;">{voice.get('insight', '')}</div>
                         <div style="font-size: 12px;">
                             <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: {r_color}; margin-right: 4px; vertical-align: middle;"></span>
                             <span style="color: {r_color}; margin-right: 12px; vertical-align: middle;">{regime}</span>
                             <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: {t_color}; margin-right: 4px; vertical-align: middle;"></span>
                             <span style="color: {t_color}; margin-right: 12px; vertical-align: middle;">{tone}</span>
-                            <span style="color: {self.c['text_secondary']}; vertical-align: middle;">{voice.get('watch_or_result', '')}</span>
+                            <span class="text-secondary" style="color: {self.c['text_secondary']}; vertical-align: middle;">{voice.get('watch_or_result', '')}</span>
                         </div>
                     </div>""")
 
         # Synthesis section
         if synthesis:
             html_parts.append(
-                f'<div style="color: {self.c["accent"]}; font-size: 13px; font-weight: 600; '
+                f'<div class="text-accent" style="color: {self.c["accent"]}; font-size: 13px; font-weight: 600; '
                 f'margin: 16px 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px;">Synthesis</div>'
             )
             for key, label in [
@@ -489,19 +540,19 @@ class EmailGenerator:
                 val = synthesis.get(key, '')
                 if val:
                     html_parts.append(
-                        f'<div style="color: {self.c["text_primary"]}; font-size: 13px; padding: 3px 0 3px 16px; '
+                        f'<div class="text-primary" style="color: {self.c["text_primary"]}; font-size: 13px; padding: 3px 0 3px 16px; '
                         f'line-height: 1.5;">&#8226; <strong>{label}:</strong> {val}</div>'
                     )
 
         # Cross-signals
         if cross_signals:
             html_parts.append(
-                f'<div style="color: {self.c["accent"]}; font-size: 13px; font-weight: 600; '
+                f'<div class="text-accent" style="color: {self.c["accent"]}; font-size: 13px; font-weight: 600; '
                 f'margin: 16px 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px;">Cross-Signals</div>'
             )
             for sig in cross_signals:
                 html_parts.append(
-                    f'<div style="color: {self.c["text_primary"]}; font-size: 13px; padding: 3px 0 3px 16px; '
+                    f'<div class="text-primary" style="color: {self.c["text_primary"]}; font-size: 13px; padding: 3px 0 3px 16px; '
                     f'line-height: 1.5;">&#8226; {sig}</div>'
                 )
 
@@ -510,7 +561,7 @@ class EmailGenerator:
         return f"""
         <tr>
             <td style="padding: 0 20px 20px 20px;">
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: {self.c['bg_section']}; border-radius: 8px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="section-bg" style="background-color: {self.c['bg_section']}; border-radius: 8px;">
                     <tr><td style="padding: 16px;">
                         {inner_html}
                     </td></tr>
@@ -564,23 +615,26 @@ class EmailGenerator:
             # Color based on change
             if change > 5:
                 color = self.c['green']
+                color_class = 'text-green'
             elif change < -5:
                 color = self.c['red']
+                color_class = 'text-red'
             else:
                 color = self.c['neutral']
+                color_class = 'text-neutral'
 
             # Format change string
             change_str = f"+{change:.0f}%" if change > 0 else f"{change:.0f}%"
 
             rows += f"""
             <tr>
-                <td style="padding: 8px 0; border-bottom: 1px solid {self.c['border']};">
+                <td class="border-b" style="padding: 8px 0; border-bottom: 1px solid {self.c['border']};">
                     <table cellpadding="0" cellspacing="0" border="0" width="100%">
                         <tr>
                             <td width="30" style="font-size: 16px;">{icon}</td>
-                            <td style="color: {self.c['text_primary']}; font-size: 14px; font-weight: 600;">{symbol}</td>
-                            <td width="60" style="text-align: right; color: {color}; font-size: 13px; font-weight: 600;">{change_str}</td>
-                            <td width="140" style="text-align: right; color: {self.c['text_secondary']}; font-size: 11px; padding-left: 10px;">{top_query[:20] if top_query else '—'}</td>
+                            <td class="text-primary" style="color: {self.c['text_primary']}; font-size: 14px; font-weight: 600;">{symbol}</td>
+                            <td width="60" class="{color_class}" style="text-align: right; color: {color}; font-size: 13px; font-weight: 600;">{change_str}</td>
+                            <td width="140" class="text-secondary" style="text-align: right; color: {self.c['text_secondary']}; font-size: 11px; padding-left: 10px;">{top_query[:20] if top_query else '—'}</td>
                         </tr>
                     </table>
                 </td>
@@ -590,7 +644,7 @@ class EmailGenerator:
         return f"""
         <tr>
             <td style="padding: 0 20px 10px 20px;">
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: {self.c['bg_section']}; border-radius: 8px; padding: 12px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="section-bg" style="background-color: {self.c['bg_section']}; border-radius: 8px; padding: 12px;">
                     {rows}
                 </table>
             </td>
