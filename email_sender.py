@@ -69,25 +69,16 @@ class EmailSender:
             return False
         
         try:
-            # Create message
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = subject
-            msg['From'] = self.sender_email
-            msg['To'] = recipient
-            
-            # Create plain text version (fallback)
+            # Create text/html alternative pair
+            msg_alt = MIMEMultipart('alternative')
             text_content = "This email requires HTML support to view properly."
-            part1 = MIMEText(text_content, 'plain')
-            
-            # Create HTML version
-            part2 = MIMEText(html_content, 'html')
-            
-            # Attach parts (plain text first, then HTML)
-            msg.attach(part1)
-            msg.attach(part2)
-            
-            # Handle attachments
+            msg_alt.attach(MIMEText(text_content, 'plain'))
+            msg_alt.attach(MIMEText(html_content, 'html'))
+
+            # If attachments, wrap in mixed container; otherwise send alternative directly
             if attachments:
+                msg = MIMEMultipart('mixed')
+                msg.attach(msg_alt)
                 for filepath in attachments:
                     if os.path.exists(filepath):
                         with open(filepath, 'rb') as f:
@@ -99,6 +90,12 @@ class EmailSender:
                                 f'attachment; filename="{os.path.basename(filepath)}"'
                             )
                             msg.attach(part)
+            else:
+                msg = msg_alt
+
+            msg['Subject'] = subject
+            msg['From'] = self.sender_email
+            msg['To'] = recipient
             
             # Connect and send with retry logic for network failures
             last_error = None

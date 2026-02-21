@@ -8,8 +8,11 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import logging
 
-# Import sector mapping
-from notion_sync import SECTOR_MAP
+# Import sector mapping (optional — not needed for all subclasses)
+try:
+    from notion_sync import SECTOR_MAP
+except ImportError:
+    SECTOR_MAP = {}
 
 logger = logging.getLogger(__name__)
 

@@ -27,8 +27,13 @@ case "$1" in
     weekly)
         $PYTHON weekly_report.py >> "$LOG_FILE" 2>&1
         ;;
+    briefing)
+        BRIEFING_DIR="/Users/tom/Documents/VScode/morning-briefing"
+        cd "$BRIEFING_DIR" && $PYTHON morning_briefing.py >> "$LOG_FILE" 2>&1
+        cd "$SCRIPT_DIR"
+        ;;
     *)
-        echo "Usage: $0 {premarket|postmarket|weekly}" >> "$LOG_FILE"
+        echo "Usage: $0 {premarket|postmarket|weekly|briefing}" >> "$LOG_FILE"
         exit 1
         ;;
 esac
