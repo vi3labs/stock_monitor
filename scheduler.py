@@ -157,21 +157,28 @@ def run_scheduler():
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description='Stock Monitor Scheduler')
-    parser.add_argument('--test', action='store_true', help='Run all reports immediately')
+    parser.add_argument('--test', action='store_true', help='Run all reports immediately (ignores market day)')
     parser.add_argument('--premarket', action='store_true', help='Run pre-market report only')
     parser.add_argument('--postmarket', action='store_true', help='Run post-market report only')
     parser.add_argument('--weekly', action='store_true', help='Run weekly report only')
-    
+    parser.add_argument('--force', action='store_true', help='Run even on non-trading days')
+
     args = parser.parse_args()
-    
+
     if args.test:
         logger.info("Running all reports in test mode...")
         run_premarket()
         run_postmarket()
         run_weekly()
     elif args.premarket:
+        if not args.force and not is_market_day():
+            logger.info("Skipping pre-market report (not a trading day). Use --force to override.")
+            return
         run_premarket()
     elif args.postmarket:
+        if not args.force and not is_market_day():
+            logger.info("Skipping post-market report (not a trading day). Use --force to override.")
+            return
         run_postmarket()
     elif args.weekly:
         run_weekly()

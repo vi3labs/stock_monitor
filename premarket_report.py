@@ -7,6 +7,7 @@ Run this at 6:30 AM EST (before market open at 9:30 AM).
 """
 
 import logging
+import argparse
 from datetime import datetime
 import sys
 import os
@@ -20,7 +21,6 @@ from news_fetcher import NewsFetcher
 from email_generator import EmailGenerator
 from email_sender import EmailSenderFactory
 from notion_watchlist import get_watchlist
-from signal_analyzer import generate_signal_digest
 from network_check import wait_for_network
 
 setup_logging()
@@ -45,11 +45,18 @@ def _send_error_alert(config: dict, message: str):
         logger.error(f"Could not send error alert: {e}")
 
 
-def main():
+def main(force: bool = False):
     """Generate and send pre-market report."""
     logger.info("=" * 50)
     logger.info("Starting Pre-Market Report Generation")
     logger.info("=" * 50)
+
+    # Skip on non-trading days unless forced
+    if not force:
+        from scheduler import is_market_day
+        if not is_market_day():
+            logger.info("Skipping pre-market report (not a trading day). Use --force to override.")
+            return
 
     if not wait_for_network():
         logger.error("Aborting pre-market report: no network connectivity")
@@ -143,18 +150,6 @@ def main():
             logger.warning(f"Could not fetch trends data: {e}")
             # Continue without trends - it's optional
 
-        # Generate signal digest via Grok
-        signal_digest = None
-        try:
-            logger.info("Generating signal digest via Grok...")
-            signal_digest = generate_signal_digest('PRE_MARKET')
-            if signal_digest:
-                logger.info("Got signal digest")
-            else:
-                logger.info("Signal digest skipped (no API key or no data)")
-        except Exception as e:
-            logger.warning(f"Could not generate signal digest: {e}")
-
         # Generate email
         logger.info("Generating email...")
         html_content = email_generator.generate_premarket_report(
@@ -167,7 +162,6 @@ def main():
             market_news=market_news,
             world_news=world_news,
             trends_data=trends_data,
-            signal_digest=signal_digest
         )
         
         # Save a local copy for debugging
@@ -200,4 +194,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description='Pre-Market Report Generator')
+    parser.add_argument('--force', action='store_true', help='Run even on non-trading days')
+    args = parser.parse_args()
+    main(force=args.force)

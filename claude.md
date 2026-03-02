@@ -31,9 +31,10 @@ stock_monitor/
 - Handles both stocks and crypto (symbols ending in `-USD`)
 
 ### Scheduler (`scheduler.py`)
-- CLI flags: `--test`, `--premarket`, `--postmarket`, `--weekly`
-- Checks for market days (skips weekends/holidays)
-- Can run as daemon or via cron/launchd
+- CLI flags: `--test`, `--premarket`, `--postmarket`, `--weekly`, `--force`
+- `--premarket` and `--postmarket` check `is_market_day()` and skip on weekends/holidays
+- `--force` overrides the trading day check; `--test` always bypasses it
+- Can run as daemon or via launchd
 
 ### Notion Integration (`notion_watchlist.py`)
 **Notion is the source of truth for the watchlist!**
@@ -64,36 +65,43 @@ stock_monitor/
 # Install dependencies
 pip install -r requirements.txt
 
-# Test all reports
+# Test all reports (bypasses market day check)
 python scheduler.py --test
 
-# Run individual reports
+# Run individual reports (skips on weekends/holidays)
 python scheduler.py --premarket
 python scheduler.py --postmarket
 python scheduler.py --weekly
 
-# Via cron wrapper (used by scheduled jobs)
+# Force run on non-trading day
+python scheduler.py --premarket --force
+python premarket_report.py --force
+
+# Via shell wrapper
 ./run_report.sh premarket
 ./run_report.sh postmarket
 ./run_report.sh weekly
 ```
 
-## Cron Schedule (Automated)
+## LaunchAgent Schedule (Automated)
 
-Cron is configured to run reports automatically. Times shown are local (+07) / EST:
+Reports run via macOS LaunchAgents (plists in `~/Library/LaunchAgents/`). They fire daily but the scripts self-guard against non-trading days using the NYSE calendar.
 
-| Report | Local Time | EST Time |
-|--------|------------|----------|
-| Pre-market | 6:30 PM Mon-Fri | 6:30 AM Mon-Fri |
-| Post-market | 4:30 AM Tue-Sat | 4:30 PM Mon-Fri |
-| Weekly | 9:00 PM Saturday | 9:00 AM Saturday |
+| Report | LaunchAgent | Local Time | EST Equivalent |
+|--------|-------------|------------|----------------|
+| Pre-market | `com.stockmonitor.premarket` | 9:00 PM daily | 9:00 AM EST |
+| Post-market | `com.stockmonitor.postmarket` | 4:30 AM daily | 4:30 PM EST (prev day) |
+| Weekly | `com.stockmonitor.weekly` | Saturday 9:00 AM | Friday 9:00 PM EST |
+
+On weekends and NYSE holidays, pre-market and post-market scripts exit immediately with a log message. No email is sent.
 
 ```bash
-# View cron schedule
-crontab -l
+# View LaunchAgent status
+launchctl list | grep stockmonitor
 
-# Edit cron schedule
-crontab -e
+# Reload after plist changes
+launchctl unload ~/Library/LaunchAgents/com.stockmonitor.premarket.plist
+launchctl load ~/Library/LaunchAgents/com.stockmonitor.premarket.plist
 ```
 
 ## Development Notes
