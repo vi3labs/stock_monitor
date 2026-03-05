@@ -34,7 +34,7 @@ from flask_cors import CORS
 
 from data_fetcher import StockDataFetcher
 from news_fetcher import NewsFetcher
-from notion_watchlist import get_watchlist, get_watchlist_with_metadata
+from notion_watchlist import get_watchlist, get_watchlist_with_metadata, add_to_watchlist, update_stock_metadata
 from notion_sync import SECTOR_MAP, COMPANY_NAMES
 
 # Configure logging
@@ -468,6 +468,128 @@ def api_earnings():
         return jsonify(earnings)
     except Exception as e:
         logger.exception("Error fetching earnings")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/watchlist', methods=['POST'])
+def api_add_ticker():
+    """Add a new ticker to the Notion watchlist."""
+    try:
+        data = request.get_json()
+        if not data or not data.get('ticker'):
+            return jsonify({'error': 'ticker is required'}), 400
+
+        ticker = data['ticker'].upper().strip()
+
+        # Validate ticker exists via yfinance
+        try:
+            import yfinance as yf
+            info = yf.Ticker(ticker).info
+            if not info or info.get('regularMarketPrice') is None:
+                return jsonify({'error': f'Invalid ticker: {ticker}'}), 400
+            company_name = data.get('company_name') or info.get('shortName') or info.get('longName') or ticker
+        except Exception as e:
+            logger.warning(f"yfinance validation failed for {ticker}: {e}")
+            company_name = data.get('company_name', ticker)
+
+        # Create in Notion
+        result = add_to_watchlist(
+            ticker=ticker,
+            sector=data.get('sector', ''),
+            status=data.get('status', 'Watching'),
+            sentiment=data.get('sentiment', ''),
+            investment_thesis=data.get('investment_thesis', ''),
+            catalysts=data.get('catalysts', ''),
+            company_name=company_name,
+        )
+
+        if result is None:
+            return jsonify({'error': 'Failed to add ticker to Notion'}), 500
+
+        # Invalidate caches so new ticker appears immediately
+        data_service._quotes_cache = None
+        data_service._quotes_time = None
+        data_service._watchlist_meta = None
+
+        return jsonify(result), 201
+
+    except Exception as e:
+        logger.exception("Error adding ticker")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/watchlist/<symbol>', methods=['PATCH'])
+def api_update_ticker(symbol):
+    """Update metadata for an existing ticker in the Notion watchlist."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body is required'}), 400
+
+        # Find the page_id for this symbol from cached metadata
+        meta = data_service.get_watchlist_metadata()
+        stock = next((s for s in meta if s['ticker'].upper() == symbol.upper()), None)
+
+        if not stock or not stock.get('page_id'):
+            return jsonify({'error': f'Ticker {symbol} not found in watchlist'}), 404
+
+        # Update in Notion
+        success = update_stock_metadata(
+            page_id=stock['page_id'],
+            sentiment=data.get('sentiment'),
+            investment_thesis=data.get('investment_thesis'),
+            catalysts=data.get('catalysts'),
+            status=data.get('status'),
+            sector=data.get('sector'),
+        )
+
+        if not success:
+            return jsonify({'error': 'Failed to update in Notion'}), 500
+
+        # Invalidate metadata cache so changes are reflected
+        data_service._watchlist_meta = None
+
+        # Build updated stock data to return
+        updated = {**stock}
+        for field in ['sentiment', 'investment_thesis', 'catalysts', 'status', 'sector']:
+            if data.get(field) is not None:
+                updated[field] = data[field]
+
+        return jsonify(updated)
+
+    except Exception as e:
+        logger.exception(f"Error updating ticker {symbol}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/watchlist/<symbol>', methods=['DELETE'])
+def api_delete_ticker(symbol):
+    """Archive a ticker from the Notion watchlist (sets archived=true)."""
+    try:
+        meta = data_service.get_watchlist_metadata()
+        stock = next((s for s in meta if s['ticker'].upper() == symbol.upper()), None)
+
+        if not stock or not stock.get('page_id'):
+            return jsonify({'error': f'Ticker {symbol} not found in watchlist'}), 404
+
+        # Archive in Notion (not hard delete — recoverable)
+        from notion_watchlist import _request_with_retry, HEADERS
+        url = f"https://api.notion.com/v1/pages/{stock['page_id']}"
+        response = _request_with_retry("PATCH", url, headers=HEADERS, json={"archived": True})
+
+        if response.status_code != 200:
+            return jsonify({'error': f'Failed to archive: {response.status_code}'}), 500
+
+        # Invalidate all caches
+        data_service._quotes_cache = None
+        data_service._quotes_time = None
+        data_service._watchlist_meta = None
+
+        logger.info(f"Archived {symbol} from watchlist")
+        return jsonify({'status': 'archived', 'ticker': symbol})
+
+    except Exception as e:
+        logger.exception(f"Error archiving ticker {symbol}")
         return jsonify({'error': str(e)}), 500
 
 

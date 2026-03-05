@@ -208,6 +208,83 @@ const API = (() => {
     }
   }
 
+  /**
+   * Add a new ticker to the watchlist
+   */
+  async function addTicker(data) {
+    try {
+      const response = await fetch(`${BASE_URL}/watchlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP ${response.status}`);
+      }
+
+      // Clear cache so next refresh picks up the new ticker
+      clearCache();
+
+      return result;
+    } catch (error) {
+      console.error('[API] Error adding ticker:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update an existing ticker's metadata
+   */
+  async function updateTicker(symbol, data) {
+    try {
+      const response = await fetch(`${BASE_URL}/watchlist/${encodeURIComponent(symbol)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP ${response.status}`);
+      }
+
+      // Clear cache so next refresh picks up changes
+      clearCache();
+
+      return result;
+    } catch (error) {
+      console.error('[API] Error updating ticker:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete (archive) a ticker from the watchlist
+   */
+  async function deleteTicker(symbol) {
+    try {
+      const response = await fetch(`${BASE_URL}/watchlist/${encodeURIComponent(symbol)}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP ${response.status}`);
+      }
+
+      clearCache();
+      return result;
+    } catch (error) {
+      console.error('[API] Error deleting ticker:', error);
+      throw error;
+    }
+  }
+
   return {
     getQuotes,
     getSectors,
@@ -218,6 +295,9 @@ const API = (() => {
     checkHealth,
     clearCache,
     connectSSE,
-    disconnectSSE
+    disconnectSSE,
+    addTicker,
+    updateTicker,
+    deleteTicker
   };
 })();

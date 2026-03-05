@@ -162,6 +162,7 @@ def main(force: bool = False):
             market_news=market_news,
             world_news=world_news,
             trends_data=trends_data,
+            dashboard_url='http://localhost:3006',
         )
         
         # Save a local copy for debugging

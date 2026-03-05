@@ -115,13 +115,19 @@ class EmailGenerator:
 </html>
 """
 
-    def _header(self, title: str, subtitle: str) -> str:
-        """Generate header section."""
+    def _header(self, title: str, subtitle: str, dashboard_url: str = None) -> str:
+        """Generate header section with optional dashboard link."""
+        dashboard_btn = ''
+        if dashboard_url:
+            dashboard_btn = f"""
+                <a href="{dashboard_url}" style="display: inline-block; margin-top: 12px; padding: 8px 20px; background: rgba(255,255,255,0.2); color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 500;">View Live Dashboard</a>
+"""
         return f"""
         <tr>
             <td style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 30px; text-align: center;">
                 <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">{title}</h1>
                 <p style="margin: 8px 0 0 0; color: #ffffff; font-size: 14px; opacity: 0.9;">{subtitle}</p>
+                {dashboard_btn}
             </td>
         </tr>
 """
@@ -664,13 +670,14 @@ class EmailGenerator:
                                    market_news: List[dict],
                                    world_news: List[dict] = None,
                                    trends_data: Dict[str, dict] = None,
-                                   signal_digest: str = None) -> str:
+                                   signal_digest: str = None,
+                                   dashboard_url: str = None) -> str:
         """Generate pre-market morning report."""
 
         now = datetime.now()
         date_str = now.strftime("%A, %B %d, %Y")
 
-        content = self._header("📈 Pre-Market Briefing", date_str)
+        content = self._header("📈 Pre-Market Briefing", date_str, dashboard_url)
 
         # World & US Headlines (NEW - first section)
         if world_news:
@@ -770,13 +777,14 @@ class EmailGenerator:
                                     market_news: List[dict] = None,
                                     world_news: List[dict] = None,
                                     trends_data: Dict[str, dict] = None,
-                                    signal_digest: str = None) -> str:
+                                    signal_digest: str = None,
+                                    dashboard_url: str = None) -> str:
         """Generate post-market closing report."""
 
         now = datetime.now()
         date_str = now.strftime("%A, %B %d, %Y")
 
-        content = self._header("📊 Market Close Report", date_str)
+        content = self._header("📊 Market Close Report", date_str, dashboard_url)
 
         # World & US Headlines (like pre-market)
         if world_news:
@@ -902,14 +910,15 @@ class EmailGenerator:
     def generate_weekly_report(self,
                                 weekly_data: Dict[str, dict],
                                 earnings_next_week: List[dict],
-                                dividends_next_week: List[dict]) -> str:
+                                dividends_next_week: List[dict],
+                                dashboard_url: str = None) -> str:
         """Generate weekly summary report."""
 
         now = datetime.now()
         week_end = now.strftime("%B %d, %Y")
         week_start = (now - timedelta(days=7)).strftime("%B %d")
 
-        content = self._header("📈 Weekly Summary", f"Week of {week_start} - {week_end}")
+        content = self._header("📈 Weekly Summary", f"Week of {week_start} - {week_end}", dashboard_url)
 
         # Sort by weekly performance
         sorted_weekly = sorted(

@@ -253,7 +253,8 @@ def main():
         html_content = email_generator.generate_weekly_report(
             weekly_data=weekly_data,
             earnings_next_week=earnings,
-            dividends_next_week=dividends
+            dividends_next_week=dividends,
+            dashboard_url='http://localhost:3006',
         )
         
         # Save a local copy

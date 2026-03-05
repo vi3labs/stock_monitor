@@ -408,6 +408,131 @@ def get_watchlist_with_metadata(statuses: List[str] = None) -> List[Dict]:
                  'current_price': None, 'page_id': None} for t in tickers]
 
 
+def add_to_watchlist(ticker: str, sector: str = '', status: str = 'Watching',
+                     sentiment: str = '', investment_thesis: str = '',
+                     catalysts: str = '', company_name: str = '') -> Optional[Dict]:
+    """
+    Add a new stock to the Notion watchlist database.
+
+    Args:
+        ticker: Stock ticker symbol (e.g., 'PLTR')
+        sector: Sector classification (e.g., 'Tech')
+        status: 'Watching' or 'Holding' (default: 'Watching')
+        sentiment: 'Bullish', 'Neutral', 'Bearish', or 'Caution'
+        investment_thesis: Optional thesis text
+        catalysts: Optional catalysts text
+        company_name: Company name (auto-filled from yfinance if empty)
+
+    Returns:
+        Dict with created page info, or None on failure
+    """
+    if not NOTION_TOKEN:
+        logger.error("Cannot add to watchlist: NOTION_TOKEN not available")
+        return None
+
+    url = "https://api.notion.com/v1/pages"
+
+    properties = {
+        "Ticker": {"title": [{"text": {"content": ticker.upper()}}]},
+        "Status": {"select": {"name": status}},
+    }
+
+    if company_name:
+        properties["Company Name"] = {"rich_text": [{"text": {"content": company_name}}]}
+    if sector:
+        properties["Sector"] = {"select": {"name": sector}}
+    if sentiment:
+        properties["Sentiment"] = {"select": {"name": sentiment}}
+    if investment_thesis:
+        properties["Investment Thesis"] = {"rich_text": [{"text": {"content": investment_thesis}}]}
+    if catalysts:
+        properties["Catalysts"] = {"rich_text": [{"text": {"content": catalysts}}]}
+
+    payload = {
+        "parent": {"database_id": DATABASE_ID},
+        "properties": properties
+    }
+
+    try:
+        response = _request_with_retry("POST", url, headers=HEADERS, json=payload)
+        if response.status_code == 200:
+            page = response.json()
+            logger.info(f"Added {ticker} to watchlist (page_id: {page.get('id')})")
+            return {
+                'ticker': ticker.upper(),
+                'company': company_name or ticker.upper(),
+                'sector': sector,
+                'status': status,
+                'sentiment': sentiment,
+                'investment_thesis': investment_thesis,
+                'catalysts': catalysts,
+                'page_id': page.get('id'),
+            }
+        else:
+            logger.error(f"Error adding to watchlist: {response.status_code} - {response.text[:200]}")
+            return None
+    except Exception as e:
+        logger.error(f"Error adding {ticker} to watchlist: {e}")
+        return None
+
+
+def update_stock_metadata(page_id: str, sentiment: str = None,
+                          investment_thesis: str = None, catalysts: str = None,
+                          status: str = None, sector: str = None) -> bool:
+    """
+    Update metadata fields for a stock in Notion.
+
+    Args:
+        page_id: Notion page ID for the stock
+        sentiment: 'Bullish', 'Neutral', 'Bearish', 'Caution', or None to skip
+        investment_thesis: Thesis text, or None to skip
+        catalysts: Catalysts text, or None to skip
+        status: 'Watching' or 'Holding', or None to skip
+        sector: Sector name, or None to skip
+
+    Returns:
+        True if successful, False otherwise
+    """
+    if not NOTION_TOKEN:
+        logger.error("Cannot update stock metadata: NOTION_TOKEN not available")
+        return False
+
+    url = f"https://api.notion.com/v1/pages/{page_id}"
+
+    properties = {}
+    if sentiment is not None:
+        if sentiment:
+            properties["Sentiment"] = {"select": {"name": sentiment}}
+        else:
+            properties["Sentiment"] = {"select": None}
+    if investment_thesis is not None:
+        properties["Investment Thesis"] = {"rich_text": [{"text": {"content": investment_thesis}}] if investment_thesis else []}
+    if catalysts is not None:
+        properties["Catalysts"] = {"rich_text": [{"text": {"content": catalysts}}] if catalysts else []}
+    if status is not None and status:
+        properties["Status"] = {"select": {"name": status}}
+    if sector is not None and sector:
+        properties["Sector"] = {"select": {"name": sector}}
+
+    if not properties:
+        logger.warning("No properties to update")
+        return True
+
+    payload = {"properties": properties}
+
+    try:
+        response = _request_with_retry("PATCH", url, headers=HEADERS, json=payload)
+        if response.status_code == 200:
+            logger.info(f"Updated metadata for page {page_id}: {list(properties.keys())}")
+            return True
+        else:
+            logger.error(f"Error updating metadata: {response.status_code} - {response.text[:200]}")
+            return False
+    except Exception as e:
+        logger.error(f"Error updating stock metadata: {e}")
+        return False
+
+
 def update_stock_price(page_id: str, current_price: float) -> bool:
     """
     Update the current price for a stock in Notion.

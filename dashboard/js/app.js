@@ -254,6 +254,14 @@ const App = (() => {
     }
 
     // Don't handle other shortcuts when modal is open
+    const addTickerOpen = AddTickerComponent && AddTickerComponent.isModalOpen();
+    if (addTickerOpen) {
+      if (e.key === 'Escape') {
+        AddTickerComponent.close();
+        e.preventDefault();
+      }
+      return;
+    }
     if (stockModalOpen || helpModalOpen) return;
 
     // Don't handle shortcuts when input is focused (except some special cases)
@@ -294,6 +302,13 @@ const App = (() => {
         }
         break;
 
+      case 'e':
+        // Toggle edit mode on expanded row
+        if (WatchlistComponent) {
+          WatchlistComponent.toggleEdit();
+        }
+        break;
+
       case '/':
         // Focus search input
         const searchInput = document.getElementById('search-input');
@@ -309,6 +324,13 @@ const App = (() => {
           refreshData(true);
         } else {
           handled = false;
+        }
+        break;
+
+      case 'a':
+        // Add new ticker
+        if (AddTickerComponent) {
+          AddTickerComponent.open();
         }
         break;
 

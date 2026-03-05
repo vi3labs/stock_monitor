@@ -17,6 +17,11 @@ const WatchlistComponent = (() => {
   let searchTerm = '';
   let sectorFilter = '';
   let selectedIndex = -1;
+  let expandedSymbol = null;
+  let editingSymbol = null;
+
+  const SENTIMENTS = ['Bullish', 'Neutral', 'Bearish', 'Caution'];
+  const STATUSES = ['Watching', 'Holding'];
 
   /**
    * Initialize component and event listeners
@@ -66,8 +71,49 @@ const WatchlistComponent = (() => {
         });
       });
 
-      // Click handler for row selection and opening detail modal
+      // Click handler — single click toggles expansion, double-click opens modal
       table.addEventListener('click', (e) => {
+        // Handle Edit/Save/Cancel/Details buttons FIRST (these live in expansion rows)
+        const editBtn = e.target.closest('[data-edit-symbol]');
+        if (editBtn) {
+          editingSymbol = editBtn.dataset.editSymbol;
+          renderTable();
+          return;
+        }
+
+        const saveBtn = e.target.closest('[data-save-symbol]');
+        if (saveBtn) {
+          saveEdit(saveBtn.dataset.saveSymbol);
+          return;
+        }
+
+        const cancelBtn = e.target.closest('[data-cancel-symbol]');
+        if (cancelBtn) {
+          editingSymbol = null;
+          renderTable();
+          return;
+        }
+
+        const removeBtn = e.target.closest('[data-remove-symbol]');
+        if (removeBtn) {
+          removeStock(removeBtn.dataset.removeSymbol);
+          return;
+        }
+
+        const detailsLink = e.target.closest('.expansion-panel__details-link');
+        if (detailsLink) {
+          const sym = detailsLink.dataset.parentSymbol;
+          const stock = filteredStocks.find(s => s.symbol === sym);
+          if (stock && StockDetailComponent) {
+            StockDetailComponent.open(stock);
+          }
+          return;
+        }
+
+        // Ignore other clicks inside expansion panel (form inputs, textareas, etc.)
+        if (e.target.closest('.expansion-panel')) return;
+
+        // For stock rows, require data-symbol
         const row = e.target.closest('tr');
         if (!row || !row.dataset.symbol) return;
 
@@ -75,14 +121,21 @@ const WatchlistComponent = (() => {
         const stock = filteredStocks.find(s => s.symbol === symbol);
 
         if (stock) {
-          // Update selection
           const newIndex = filteredStocks.findIndex(s => s.symbol === symbol);
           setSelectedIndex(newIndex);
+          toggleExpansion(symbol);
+        }
+      });
 
-          // Open detail modal
-          if (StockDetailComponent) {
-            StockDetailComponent.open(stock);
-          }
+      // Double-click opens the full detail modal
+      table.addEventListener('dblclick', (e) => {
+        const row = e.target.closest('tr');
+        if (!row || !row.dataset.symbol) return;
+
+        const symbol = row.dataset.symbol;
+        const stock = filteredStocks.find(s => s.symbol === symbol);
+        if (stock && StockDetailComponent) {
+          StockDetailComponent.open(stock);
         }
       });
     }
@@ -196,7 +249,21 @@ const WatchlistComponent = (() => {
       return;
     }
 
-    tbody.innerHTML = filtered.map((stock, index) => renderRow(stock, index)).join('');
+    tbody.innerHTML = filtered.map((stock, index) => {
+      let html = renderRow(stock, index);
+      if (expandedSymbol === stock.symbol) {
+        html += renderExpansionRow(stock);
+      }
+      return html;
+    }).join('');
+
+    // Animate expansion panel open
+    requestAnimationFrame(() => {
+      const panel = tbody.querySelector('.expansion-panel');
+      if (panel) {
+        panel.style.maxHeight = panel.scrollHeight + 'px';
+      }
+    });
 
     // Draw sparklines after DOM update
     requestAnimationFrame(() => {
@@ -249,6 +316,191 @@ const WatchlistComponent = (() => {
         </td>
       </tr>
     `;
+  }
+
+  /**
+   * Render the expansion panel row shown below an expanded stock
+   */
+  function renderExpansionRow(stock) {
+    const isEditing = editingSymbol === stock.symbol;
+
+    if (isEditing) {
+      return renderExpansionRowEdit(stock);
+    }
+
+    const sentiment = stock.sentiment || '';
+    const sentimentClass = sentiment ? sentiment.toLowerCase() : '';
+    const sentimentBadge = sentiment
+      ? `<span class="sentiment-badge sentiment-badge--${sentimentClass}">${sentiment}</span>`
+      : '<span class="expansion-panel__empty">No sentiment</span>';
+
+    const status = stock.status || '';
+    const statusClass = status ? status.toLowerCase() : '';
+    const statusBadge = status
+      ? `<span class="status-badge status-badge--${statusClass}">${status}</span>`
+      : '';
+
+    const thesis = stock.investment_thesis || 'No investment thesis recorded.';
+    const catalysts = stock.catalysts || 'No catalysts recorded.';
+
+    return `
+      <tr class="expansion-row" data-parent-symbol="${stock.symbol}">
+        <td colspan="7" class="expansion-cell">
+          <div class="expansion-panel" style="max-height: 0;">
+            <div class="expansion-panel__top-row">
+              <div class="expansion-panel__badges">
+                ${sentimentBadge} ${statusBadge}
+              </div>
+              <button class="expansion-panel__edit-btn" data-edit-symbol="${stock.symbol}">Edit</button>
+            </div>
+            <div class="expansion-panel__section">
+              <div class="expansion-panel__label">Investment Thesis</div>
+              <div class="expansion-panel__text">${thesis}</div>
+            </div>
+            <div class="expansion-panel__section">
+              <div class="expansion-panel__label">Catalysts</div>
+              <div class="expansion-panel__text">${catalysts}</div>
+            </div>
+            <div class="expansion-panel__bottom-row">
+              <button class="expansion-panel__details-link" data-parent-symbol="${stock.symbol}">
+                View Full Details
+              </button>
+              <button class="expansion-panel__remove-btn" data-remove-symbol="${stock.symbol}" title="Remove from watchlist">Remove</button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  /**
+   * Render the expansion panel in edit mode
+   */
+  function renderExpansionRowEdit(stock) {
+    const sentimentOptions = ['', ...SENTIMENTS].map(s => {
+      const selected = (stock.sentiment || '') === s ? 'selected' : '';
+      const label = s || 'None';
+      return `<option value="${s}" ${selected}>${label}</option>`;
+    }).join('');
+
+    const statusOptions = STATUSES.map(s => {
+      const selected = (stock.status || 'Watching') === s ? 'selected' : '';
+      return `<option value="${s}" ${selected}>${s}</option>`;
+    }).join('');
+
+    const escapeHtml = (str) => (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    return `
+      <tr class="expansion-row expansion-row--editing" data-parent-symbol="${stock.symbol}">
+        <td colspan="7" class="expansion-cell">
+          <div class="expansion-panel" style="max-height: 0;">
+            <div class="form-row" style="margin-bottom: var(--space-md);">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Sentiment</label>
+                <select class="form-select" id="edit-sentiment-${stock.symbol}">
+                  ${sentimentOptions}
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Status</label>
+                <select class="form-select" id="edit-status-${stock.symbol}">
+                  ${statusOptions}
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Investment Thesis</label>
+              <textarea class="form-textarea" id="edit-thesis-${stock.symbol}" rows="3">${escapeHtml(stock.investment_thesis)}</textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Catalysts</label>
+              <textarea class="form-textarea" id="edit-catalysts-${stock.symbol}" rows="2">${escapeHtml(stock.catalysts)}</textarea>
+            </div>
+            <div class="expansion-panel__edit-actions">
+              <button class="btn" data-cancel-symbol="${stock.symbol}">Cancel</button>
+              <button class="btn btn--primary" data-save-symbol="${stock.symbol}">Save</button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  /**
+   * Handle removing (archiving) a stock from the watchlist
+   */
+  async function removeStock(symbol) {
+    if (!confirm(`Remove ${symbol} from your watchlist?`)) return;
+
+    try {
+      await API.deleteTicker(symbol);
+
+      // Remove from local data
+      allStocks = allStocks.filter(s => s.symbol !== symbol);
+      expandedSymbol = null;
+      editingSymbol = null;
+      renderTable();
+      App.showToast(`${symbol} removed from watchlist`, 'success');
+    } catch (error) {
+      App.showToast(`Failed to remove ${symbol}: ${error.message}`, 'error');
+    }
+  }
+
+  /**
+   * Handle saving edited metadata
+   */
+  async function saveEdit(symbol) {
+    const stock = allStocks.find(s => s.symbol === symbol);
+    if (!stock) return;
+
+    const sentiment = document.getElementById(`edit-sentiment-${symbol}`)?.value || '';
+    const status = document.getElementById(`edit-status-${symbol}`)?.value || 'Watching';
+    const thesis = document.getElementById(`edit-thesis-${symbol}`)?.value || '';
+    const catalysts = document.getElementById(`edit-catalysts-${symbol}`)?.value || '';
+
+    // Find the save button and show loading state
+    const saveBtn = document.querySelector(`[data-save-symbol="${symbol}"]`);
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+    }
+
+    try {
+      await API.updateTicker(symbol, {
+        sentiment,
+        status,
+        investment_thesis: thesis,
+        catalysts,
+      });
+
+      // Update local data immediately
+      stock.sentiment = sentiment;
+      stock.status = status;
+      stock.investment_thesis = thesis;
+      stock.catalysts = catalysts;
+
+      editingSymbol = null;
+      renderTable();
+      App.showToast(`${symbol} updated`, 'success');
+    } catch (error) {
+      App.showToast(`Failed to update ${symbol}: ${error.message}`, 'error');
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+      }
+    }
+  }
+
+  /**
+   * Toggle the expansion panel for a given stock symbol
+   */
+  function toggleExpansion(symbol) {
+    if (expandedSymbol === symbol) {
+      expandedSymbol = null;
+    } else {
+      expandedSymbol = symbol;
+    }
+    renderTable();
   }
 
   /**
@@ -388,24 +640,34 @@ const WatchlistComponent = (() => {
   }
 
   /**
-   * Move selection up
+   * Move selection up (and auto-expand the new row)
    */
   function selectPrevious() {
     if (selectedIndex <= 0) {
-      setSelectedIndex(filteredStocks.length - 1); // Wrap to bottom
+      setSelectedIndex(filteredStocks.length - 1);
     } else {
       setSelectedIndex(selectedIndex - 1);
+    }
+    // Auto-expand the newly selected row
+    if (selectedIndex >= 0 && selectedIndex < filteredStocks.length) {
+      expandedSymbol = filteredStocks[selectedIndex].symbol;
+      renderTable();
     }
   }
 
   /**
-   * Move selection down
+   * Move selection down (and auto-expand the new row)
    */
   function selectNext() {
     if (selectedIndex >= filteredStocks.length - 1) {
-      setSelectedIndex(0); // Wrap to top
+      setSelectedIndex(0);
     } else {
       setSelectedIndex(selectedIndex + 1);
+    }
+    // Auto-expand the newly selected row
+    if (selectedIndex >= 0 && selectedIndex < filteredStocks.length) {
+      expandedSymbol = filteredStocks[selectedIndex].symbol;
+      renderTable();
     }
   }
 
@@ -464,6 +726,27 @@ const WatchlistComponent = (() => {
     return filteredStocks;
   }
 
+  /**
+   * Toggle edit mode on the currently expanded row
+   */
+  function toggleEdit() {
+    if (!expandedSymbol) return;
+    if (editingSymbol === expandedSymbol) {
+      editingSymbol = null;
+    } else {
+      editingSymbol = expandedSymbol;
+    }
+    renderTable();
+  }
+
+  /**
+   * Add a single stock optimistically (before full refresh)
+   */
+  function addStock(stock) {
+    allStocks.push(stock);
+    renderTable();
+  }
+
   // Initialize when DOM is ready
   document.addEventListener('DOMContentLoaded', init);
 
@@ -477,6 +760,8 @@ const WatchlistComponent = (() => {
     getSelectedStock,
     focusSelectedRow,
     getFilteredStocks,
-    setSelectedIndex
+    setSelectedIndex,
+    addStock,
+    toggleEdit
   };
 })();
