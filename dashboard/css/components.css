@@ -1217,6 +1217,7 @@
 .stock-detail__actions {
   display: flex;
   justify-content: center;
+  gap: var(--space-sm);
   padding-top: var(--space-md);
 }
 

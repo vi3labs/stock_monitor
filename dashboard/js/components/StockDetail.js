@@ -159,6 +159,7 @@ const StockDetailComponent = (() => {
     }
 
     const yahooUrl = `https://finance.yahoo.com/quote/${encodeURIComponent(stock.symbol)}`;
+    const tradingViewUrl = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(stock.symbol)}`;
 
     return `
       <div class="stock-detail">
@@ -217,7 +218,13 @@ const StockDetailComponent = (() => {
               <polyline points="15 3 21 3 21 9"/>
               <line x1="10" y1="14" x2="21" y2="3"/>
             </svg>
-            View on Yahoo Finance
+            Yahoo Finance
+          </a>
+          <a href="${tradingViewUrl}" target="_blank" rel="noopener noreferrer" class="btn btn--primary">
+            <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            TradingView
           </a>
         </div>
       </div>
