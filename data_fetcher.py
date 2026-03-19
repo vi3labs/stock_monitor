@@ -424,8 +424,14 @@ class StockDataFetcher:
 
             return None  # Results collected via shared list
 
-        # Parallel fetch
-        self._parallel_fetch(self.stock_symbols, fetch_earnings, "earnings")
+        # Parallel fetch (suppress yfinance's noisy 404 errors for ETFs/symbols without earnings)
+        yf_logger = logging.getLogger("yfinance")
+        original_level = yf_logger.level
+        yf_logger.setLevel(logging.CRITICAL)
+        try:
+            self._parallel_fetch(self.stock_symbols, fetch_earnings, "earnings")
+        finally:
+            yf_logger.setLevel(original_level)
 
         # Remove duplicates and sort by date
         seen = set()
@@ -486,7 +492,14 @@ class StockDataFetcher:
                 logger.warning(f"Error fetching dividend for {symbol}: {e}")
                 return None
 
-        results = self._parallel_fetch(self.stock_symbols, fetch_dividend, "dividends")
+        # Suppress yfinance's noisy 404 errors for symbols without fundamentals
+        yf_logger = logging.getLogger("yfinance")
+        original_level = yf_logger.level
+        yf_logger.setLevel(logging.CRITICAL)
+        try:
+            results = self._parallel_fetch(self.stock_symbols, fetch_dividend, "dividends")
+        finally:
+            yf_logger.setLevel(original_level)
 
         # Convert to list and sort by date
         dividends = list(results.values())

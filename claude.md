@@ -107,7 +107,7 @@ launchctl load ~/Library/LaunchAgents/com.stockmonitor.premarket.plist
 ## Development Notes
 
 - Email configured via Gmail SMTP with App Password
-- Notion API token stored in `notion_watchlist.py` (should move to env)
+- Notion API token loaded from `.env` via python-dotenv (already migrated from hardcoded)
 - Log files: `stock_monitor.log` (app), `cron.log` (scheduled runs)
 - Reports saved to `reports/` directory (not in git)
 

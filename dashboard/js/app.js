@@ -41,16 +41,8 @@ const App = (() => {
     // Wait for server to be ready, then load data
     await waitForServerAndLoad();
 
-    // Connect SSE for live updates
-    API.connectSSE((data) => {
-      if (data.type === 'refresh') {
-        console.log('[App] Server refreshed data, updating...');
-        refreshData(false);
-      }
-    });
-
-    // Start auto-refresh if market is open
-    startAutoRefresh();
+    // SSE and auto-refresh disabled — data refreshes only on explicit user action
+    // (click Refresh button or press 'r')
 
     // Update market status indicator
     updateMarketStatus();
@@ -203,16 +195,9 @@ const App = (() => {
     // Keyboard shortcuts
     document.addEventListener('keydown', handleKeyboard);
 
-    // Pause auto-refresh when tab is hidden
+    // Update market status when tab becomes visible
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        console.log('[App] Tab hidden, pausing auto-refresh');
-      } else {
-        console.log('[App] Tab visible, resuming auto-refresh');
-        // Refresh data when tab becomes visible if market is open
-        if (isMarketOpen()) {
-          refreshData(false);
-        }
+      if (!document.hidden) {
         updateMarketStatus();
       }
     });

@@ -5,7 +5,7 @@
 
 const API = (() => {
   const BASE_URL = 'http://localhost:5001/api';
-  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  const CACHE_TTL = Infinity; // Cache persists until explicit refresh
 
   // In-memory cache
   const cache = new Map();
