@@ -16,10 +16,19 @@ stock_monitor/
 ├── weekly_report.py      # Weekly summary generator (Saturday 9:00 AM EST)
 ├── data_fetcher.py       # Stock data fetching (yfinance)
 ├── news_fetcher.py       # News aggregation (Yahoo Finance, Finviz)
-├── email_generator.py    # HTML email template generation
+├── email_generator.py    # HTML email + Jinja2 template generation
 ├── email_sender.py       # SMTP email delivery
 ├── notion_watchlist.py   # Fetches watchlist from Notion (source of truth)
-└── notion_sync.py        # Notion database sync utilities
+├── notion_sync.py        # Notion database sync utilities
+├── db.py                 # SQLite database for historical tracking
+├── backfill_db.py        # One-time script to parse existing reports into DB
+├── data/stock_history.db # SQLite database (WAL mode)
+├── templates/            # Jinja2 email templates (base, weekly, pre/post-market)
+│   └── macros/           # Shared email component macros
+└── dashboard/
+    ├── js/router.js      # Hash-based page routing
+    ├── js/components/History.js     # Weekly Reports page
+    └── js/components/Performance.js # Performance heatmap/streaks page
 ```
 
 ## Key Components
@@ -51,6 +60,26 @@ stock_monitor/
 ### Sector Mapping (`notion_sync.py`)
 - Sector mapping and company name overrides built-in
 - Generates daily summary content with top gainers/losers
+
+### Historical Database (`db.py`)
+- SQLite at `data/stock_history.db` (WAL mode for concurrent access)
+- Tables: `weekly_snapshots`, `watchlist_changes`, `report_metadata`
+- `weekly_report.py` writes snapshots + metadata after each report generation
+- Watchlist diffs tracked automatically by comparing against `last_watchlist.json`
+- Query functions: `get_all_streaks()`, `get_rolling_performers()`, `get_weekly_snapshots()`
+- Backfill: `python backfill_db.py` parses existing HTML reports into DB
+
+### Dashboard Pages
+- **Hash-based routing**: `#/dashboard`, `#/history`, `#/performance`
+- **Weekly Reports** (`History.js`): WoW chart, report timeline with iframe viewer, streaks, watchlist diffs
+- **Performance** (`Performance.js`): period tabs (1W/1M/3M), top/bottom performers, color heatmap (archived tickers dimmed), streak leaderboard
+- Watchlist status options: Watching, Holding, Archived (archived = excluded from reports, preserved in history)
+
+### Email Templates (`templates/`)
+- Jinja2 templates: `base.html`, `weekly.html`, `premarket.html`, `postmarket.html`
+- Shared macros in `templates/macros/components.html`
+- `JinjaEmailGenerator` class in `email_generator.py` — drop-in replacement for `EmailGenerator`
+- Inline HTML bar charts (no matplotlib in emails), Performance Leaders section with streaks
 
 ## Configuration (`config.yaml`)
 
