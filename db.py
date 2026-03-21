@@ -191,25 +191,25 @@ def get_symbol_streak(symbol: str) -> Dict:
         ).fetchall()
 
     if not rows:
-        return {'symbol': symbol, 'direction': None, 'streak': 0, 'total_change': 0.0}
+        return {'symbol': symbol, 'direction': None, 'weeks': 0, 'total_change_pct': 0.0}
 
     first_change = rows[0]['week_change_pct']
     if first_change == 0:
-        return {'symbol': symbol, 'direction': None, 'streak': 0, 'total_change': 0.0}
+        return {'symbol': symbol, 'direction': None, 'weeks': 0, 'total_change_pct': 0.0}
 
     direction = 'up' if first_change > 0 else 'down'
-    streak = 0
-    total_change = 0.0
+    weeks = 0
+    total_change_pct = 0.0
 
     for row in rows:
         change = row['week_change_pct']
         if (direction == 'up' and change > 0) or (direction == 'down' and change < 0):
-            streak += 1
-            total_change += change
+            weeks += 1
+            total_change_pct += change
         else:
             break
 
-    return {'symbol': symbol, 'direction': direction, 'streak': streak, 'total_change': round(total_change, 2)}
+    return {'symbol': symbol, 'direction': direction, 'weeks': weeks, 'total_change_pct': round(total_change_pct, 2)}
 
 
 def get_all_streaks() -> List[Dict]:
@@ -222,10 +222,10 @@ def get_all_streaks() -> List[Dict]:
     streaks = []
     for row in symbols:
         s = get_symbol_streak(row['symbol'])
-        if s['streak'] >= 2:
+        if s['weeks'] >= 2:
             streaks.append(s)
 
-    streaks.sort(key=lambda x: x['streak'], reverse=True)
+    streaks.sort(key=lambda x: x['weeks'], reverse=True)
     return streaks
 
 

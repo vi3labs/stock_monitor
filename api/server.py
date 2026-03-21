@@ -735,11 +735,7 @@ def api_history_watchlist_changes():
 def api_history_streaks():
     """Symbols with consecutive week streaks (up or down)."""
     from db import get_all_streaks
-    streaks = get_all_streaks()
-    for s in streaks:
-        s['weeks'] = s.pop('streak', 0)
-        s['total_change_pct'] = s.pop('total_change', 0.0)
-    return jsonify(streaks)
+    return jsonify(get_all_streaks())
 
 
 @app.route('/api/performance/rolling')
