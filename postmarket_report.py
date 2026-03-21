@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config_loader import load_config, setup_logging
 from data_fetcher import StockDataFetcher, TrendsFetcher
 from news_fetcher import NewsFetcher
-from email_generator import EmailGenerator
+from email_generator import JinjaEmailGenerator as EmailGenerator
 from email_sender import EmailSenderFactory
 from notion_watchlist import get_watchlist
 from network_check import wait_for_network
