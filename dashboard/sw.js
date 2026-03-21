@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stock-monitor-v3';
+const CACHE_NAME = 'stock-monitor-v6';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -8,6 +8,7 @@ const STATIC_ASSETS = [
     '/css/components.css',
     '/js/api.js',
     '/js/charts.js',
+    '/js/router.js',
     '/js/components/Indices.js',
     '/js/components/Sectors.js',
     '/js/components/Watchlist.js',
@@ -16,6 +17,8 @@ const STATIC_ASSETS = [
     '/js/components/Earnings.js',
     '/js/components/StockDetail.js',
     '/js/components/AddTicker.js',
+    '/js/components/History.js',
+    '/js/components/Performance.js',
     '/js/app.js'
 ];
 

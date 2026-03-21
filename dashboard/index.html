@@ -42,8 +42,14 @@
           Refresh
         </button>
       </div>
+      <nav class="nav" id="main-nav">
+        <button class="nav__tab nav__tab--active" data-page="dashboard" onclick="location.hash='#/dashboard'">Dashboard</button>
+        <button class="nav__tab" data-page="history" onclick="location.hash='#/history'">Weekly Reports</button>
+        <button class="nav__tab" data-page="performance" onclick="location.hash='#/performance'">Performance</button>
+      </nav>
     </header>
 
+    <div id="page-dashboard" class="page page--active">
     <!-- Market Indices Grid -->
     <section class="indices-grid" id="indices-grid" aria-label="Market Indices">
       <!-- Index cards populated by JavaScript -->
@@ -254,6 +260,18 @@
         </section>
       </div>
     </main>
+    </div>
+
+    <div id="page-history" class="page">
+      <div class="history-page" id="history-container">
+        <div class="empty-state"><p class="empty-state__message">Loading history...</p></div>
+      </div>
+    </div>
+    <div id="page-performance" class="page">
+      <div class="performance-page" id="performance-container">
+        <div class="empty-state"><p class="empty-state__message">Loading performance...</p></div>
+      </div>
+    </div>
   </div>
 
   <!-- Toast Container -->
@@ -331,6 +349,9 @@
   <script src="js/components/Earnings.js"></script>
   <script src="js/components/StockDetail.js"></script>
   <script src="js/components/AddTicker.js"></script>
+  <script src="js/router.js"></script>
+  <script src="js/components/History.js"></script>
+  <script src="js/components/Performance.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

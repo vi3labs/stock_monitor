@@ -681,9 +681,81 @@ def index():
             '/api/earnings': 'Upcoming earnings calendar for watchlist stocks',
             '/api/news': 'Latest market news',
             '/api/stream': 'SSE endpoint for real-time data updates',
-            '/api/health': 'Health check'
+            '/api/health': 'Health check',
+            '/api/history/reports': 'Weekly report metadata timeline',
+            '/api/history/report/<date>/html': 'Raw HTML for a specific weekly report',
+            '/api/history/snapshots': 'Weekly snapshot data (filterable by symbol, date range)',
+            '/api/history/watchlist-changes': 'Watchlist additions and removals',
+            '/api/history/streaks': 'Symbols with consecutive week streaks',
+            '/api/performance/rolling': 'Top/bottom performers over rolling period',
         }
     })
+
+
+@app.route('/api/history/reports')
+def api_history_reports():
+    """All weekly report metadata for timeline."""
+    from db import get_all_report_metadata
+    return jsonify(get_all_report_metadata())
+
+
+@app.route('/api/history/report/<date>/html')
+def api_history_report_html(date):
+    """Raw HTML for a specific weekly report."""
+    from db import get_all_report_metadata
+    reports = get_all_report_metadata()
+    report = next((r for r in reports if r['report_date'] == date), None)
+    if not report or not report.get('file_path'):
+        return jsonify({'error': 'Report not found'}), 404
+    filepath = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), report['file_path'])
+    if not os.path.exists(filepath):
+        return jsonify({'error': 'Report file not found'}), 404
+    with open(filepath, 'r') as f:
+        return Response(f.read(), mimetype='text/html')
+
+
+@app.route('/api/history/snapshots')
+def api_history_snapshots():
+    """Weekly snapshot data, filterable by symbol and date range."""
+    from db import get_weekly_snapshots
+    symbol = request.args.get('symbol')
+    start = request.args.get('start')
+    end = request.args.get('end')
+    return jsonify(get_weekly_snapshots(symbol=symbol, start_date=start, end_date=end))
+
+
+@app.route('/api/history/watchlist-changes')
+def api_history_watchlist_changes():
+    """Watchlist additions and removals over time."""
+    from db import get_watchlist_changes
+    return jsonify(get_watchlist_changes())
+
+
+@app.route('/api/history/streaks')
+def api_history_streaks():
+    """Symbols with consecutive week streaks (up or down)."""
+    from db import get_all_streaks
+    streaks = get_all_streaks()
+    for s in streaks:
+        s['weeks'] = s.pop('streak', 0)
+        s['total_change_pct'] = s.pop('total_change', 0.0)
+    return jsonify(streaks)
+
+
+@app.route('/api/performance/rolling')
+def api_performance_rolling():
+    """Top/bottom performers over a rolling period."""
+    from db import get_rolling_performers
+    period = request.args.get('period', '1m')
+    n = request.args.get('n', 5, type=int)
+    weeks_map = {'1w': 1, '1m': 4, '3m': 13}
+    weeks = weeks_map.get(period, 4)
+    result = get_rolling_performers(n=n, weeks=weeks)
+    for lst in [result.get('top', []), result.get('bottom', []), result.get('all', [])]:
+        for p in lst:
+            if 'cumulative_change' in p:
+                p['change_pct'] = p.pop('cumulative_change')
+    return jsonify(result)
 
 
 @app.route('/dashboard/')
@@ -712,6 +784,10 @@ if __name__ == '__main__':
     print("  GET /api/news     - Market news")
     print("  GET /api/stream   - SSE real-time updates")
     print("  GET /api/health   - Health check")
+    print("  GET /api/history/reports    - Report metadata timeline")
+    print("  GET /api/history/snapshots  - Historical snapshots")
+    print("  GET /api/history/streaks    - Consecutive week streaks")
+    print("  GET /api/performance/rolling - Rolling top/bottom performers")
     print("=" * 60)
     print("Starting background data warmup...")
     print("=" * 60 + "\n")

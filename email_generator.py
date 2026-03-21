@@ -7,6 +7,7 @@ Generates HTML emails for stock reports with inline CSS for email client compati
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import logging
+import os
 
 # Import sector mapping (optional — not needed for all subclasses)
 try:
@@ -339,6 +340,110 @@ class EmailGenerator:
             </td>
         </tr>
 """
+
+    def _inline_bar_chart(self, items: List[tuple], max_bars: int = 10) -> str:
+        """Generate an HTML/CSS table-based horizontal bar chart (no images).
+
+        Args:
+            items: list of (label, value) tuples where value is a percentage change.
+            max_bars: maximum number of bars to display.
+        """
+        display_items = items[:max_bars]
+        if not display_items:
+            return ""
+
+        max_abs = max(abs(v) for _, v in display_items) if display_items else 1
+
+        rows = ""
+        for label, value in display_items:
+            color = self.c['green'] if value > 0 else (self.c['red'] if value < 0 else self.c['neutral'])
+            color_class = 'text-green' if value > 0 else ('text-red' if value < 0 else 'text-neutral')
+            bg_class = 'bg-green-subtle' if value > 0 else ('bg-red-subtle' if value < 0 else '')
+            bar_width = int(min(abs(value) / max_abs * 55, 55)) if max_abs > 0 else 0
+            change_str = f"+{value:.2f}%" if value > 0 else f"{value:.2f}%"
+
+            rows += f"""
+                <tr>
+                    <td style="padding: 6px 0; width: 70px;">
+                        <span class="text-primary" style="color: {self.c['text_primary']}; font-size: 13px; font-weight: 600;">{label}</span>
+                    </td>
+                    <td style="padding: 6px 0;">
+                        <div class="{bg_class}" style="background-color: {color}30; height: 18px; width: {bar_width}%; border-radius: 3px; display: inline-block; vertical-align: middle;"></div>
+                        <span class="{color_class}" style="color: {color}; font-size: 12px; font-weight: 600; margin-left: 6px; vertical-align: middle;">{change_str}</span>
+                    </td>
+                </tr>
+"""
+
+        return f"""
+        <tr>
+            <td style="padding: 0 20px 20px 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="section-bg" style="background-color: {self.c['bg_section']}; border-radius: 8px;">
+                    <tr><td style="padding: 16px;">
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                            {rows}
+                        </table>
+                    </td></tr>
+                </table>
+            </td>
+        </tr>
+"""
+
+    def _performance_leaders_section(self, weekly_data: Dict[str, dict],
+                                      streaks: list = None,
+                                      sector_averages: list = None) -> str:
+        """Generate Performance Leaders section with streaks, volume movers, and sector chart."""
+        content = ""
+
+        # Streak Watch
+        if streaks:
+            content += self._section_title("Streak Watch")
+            badge_html = ""
+            for s in streaks[:12]:
+                color = self.c['green'] if s.get('direction') == 'up' else self.c['red']
+                color_class = 'text-green' if s.get('direction') == 'up' else 'text-red'
+                arrow = '&#9650;' if s.get('direction') == 'up' else '&#9660;'
+                badge_html += f"""
+                    <span class="{color_class}" style="display: inline-block; padding: 3px 10px; border-radius: 12px; background-color: {color}15; color: {color}; font-size: 12px; font-weight: 600; margin: 2px 4px;">
+                        {arrow} {s.get('symbol', '')} {s.get('weeks', 0)}w
+                    </span>"""
+            content += f"""
+        <tr>
+            <td style="padding: 0 20px 20px 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="section-bg" style="background-color: {self.c['bg_section']}; border-radius: 8px;">
+                    <tr><td style="padding: 16px; line-height: 2.2;">
+                        {badge_html}
+                    </td></tr>
+                </table>
+            </td>
+        </tr>
+"""
+
+        # Volume Movers
+        volume_movers = sorted(
+            [d for d in weekly_data.values() if d.get('volume_ratio', 1) > 1.5],
+            key=lambda x: x.get('volume_ratio', 1),
+            reverse=True
+        )[:6]
+
+        if volume_movers:
+            content += self._section_title("Volume Movers")
+            for stock in volume_movers:
+                vol_ratio = stock.get('volume_ratio', 1)
+                content += self._stock_row(
+                    stock['symbol'],
+                    '',
+                    stock.get('end_price', 0) or stock.get('price', 0),
+                    stock.get('week_change_percent', 0) or stock.get('change_percent', 0),
+                    f"{vol_ratio:.1f}x vol"
+                )
+            content += self._spacer(10)
+
+        # Sector comparison bar chart
+        if sector_averages:
+            content += self._section_title("Sector Comparison")
+            content += self._inline_bar_chart(sector_averages)
+
+        return content
 
     def _stocks_by_sector(self, quotes: Dict[str, dict], limit_per_sector: int = 3, change_key: str = 'change_percent') -> str:
         """Generate stocks grouped by sector showing top movers."""
@@ -911,14 +1016,17 @@ class EmailGenerator:
                                 weekly_data: Dict[str, dict],
                                 earnings_next_week: List[dict],
                                 dividends_next_week: List[dict],
-                                dashboard_url: str = None) -> str:
+                                dashboard_url: str = None,
+                                streaks: list = None,
+                                sector_averages: list = None,
+                                **kwargs) -> str:
         """Generate weekly summary report."""
 
         now = datetime.now()
         week_end = now.strftime("%B %d, %Y")
         week_start = (now - timedelta(days=7)).strftime("%B %d")
 
-        content = self._header("📈 Weekly Summary", f"Week of {week_start} - {week_end}", dashboard_url)
+        content = self._header("Weekly Summary", f"Week of {week_start} - {week_end}", dashboard_url)
 
         # Sort by weekly performance
         sorted_weekly = sorted(
@@ -932,7 +1040,7 @@ class EmailGenerator:
         avg_change = sum(s.get('week_change_percent', 0) for s in weekly_data.values()) / len(weekly_data) if weekly_data else 0
 
         # Overview
-        content += self._section_title("📊 Week Overview")
+        content += self._section_title("Week Overview")
         content += self._summary_box([
             ("Total Stocks", str(len(weekly_data)), self.c['text_primary']),
             ("Week Gainers", str(len(week_gainers)), self.c['green']),
@@ -941,11 +1049,11 @@ class EmailGenerator:
         ])
 
         # Sector performance for the week
-        content += self._section_title("📊 Sector Performance")
+        content += self._section_title("Sector Performance")
         content += self._sector_performance_section(weekly_data, change_key='week_change_percent')
 
         # Top gainers
-        content += self._section_title("🚀 Week's Top Gainers")
+        content += self._section_title("Week's Top Gainers")
         for stock in week_gainers[:8]:
             content += self._stock_row(
                 stock['symbol'],
@@ -957,7 +1065,7 @@ class EmailGenerator:
 
         # Top losers
         week_losers_sorted = sorted(week_losers, key=lambda x: x.get('week_change_percent', 0))
-        content += self._section_title("📉 Week's Biggest Declines")
+        content += self._section_title("Week's Biggest Declines")
         for stock in week_losers_sorted[:8]:
             content += self._stock_row(
                 stock['symbol'],
@@ -967,16 +1075,35 @@ class EmailGenerator:
             )
         content += self._spacer(10)
 
+        # Performance Leaders (Phase 8 enhancement)
+        # Compute sector_averages from data if not provided
+        if sector_averages is None:
+            sector_data = {}
+            for symbol, data in weekly_data.items():
+                sector = SECTOR_MAP.get(symbol, 'Other')
+                if sector not in sector_data:
+                    sector_data[sector] = []
+                sector_data[sector].append(data.get('week_change_percent', 0))
+            sector_avg = {k: sum(v)/len(v) for k, v in sector_data.items() if v}
+            sector_averages = sorted(sector_avg.items(), key=lambda x: x[1], reverse=True)
+            sector_averages = [(s, a) for s, a in sector_averages if abs(a) >= 0.1][:10]
+
+        leaders_content = self._performance_leaders_section(
+            weekly_data, streaks=streaks, sector_averages=sector_averages
+        )
+        if leaders_content:
+            content += leaders_content
+
         # Movers by sector
         sector_content = self._stocks_by_sector(weekly_data, change_key='week_change_percent')
         if sector_content:
-            content += self._section_title("🏢 Movers by Sector")
+            content += self._section_title("Movers by Sector")
             content += sector_content
             content += self._spacer(10)
 
         # Earnings next week
         if earnings_next_week:
-            content += self._section_title("📅 Earnings Next Week")
+            content += self._section_title("Earnings Next Week")
             for e in earnings_next_week[:8]:
                 date_parts = e['date'].split('-')
                 date_display = f"{date_parts[1]}/{date_parts[2]}"
@@ -985,7 +1112,7 @@ class EmailGenerator:
 
         # Dividends next week
         if dividends_next_week:
-            content += self._section_title("💰 Ex-Dividend Dates Next Week")
+            content += self._section_title("Ex-Dividend Dates Next Week")
             for d in dividends_next_week[:5]:
                 date_parts = d['ex_date'].split('-')
                 date_display = f"{date_parts[1]}/{date_parts[2]}"
@@ -995,6 +1122,239 @@ class EmailGenerator:
         content += self._footer()
 
         return self._base_wrapper(content)
+
+
+class JinjaEmailGenerator(EmailGenerator):
+    """Email generator using Jinja2 templates. Same public API as EmailGenerator."""
+
+    def __init__(self):
+        super().__init__()
+        from jinja2 import Environment, FileSystemLoader
+        template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
+        self.env = Environment(loader=FileSystemLoader(template_dir))
+        self.env.filters['format_price'] = self._format_price
+        self.env.filters['format_change'] = lambda x: f"+{x:.2f}%" if x > 0 else f"{x:.2f}%"
+        self.env.globals['colors'] = self.COLORS
+        self.env.globals['colors_dark'] = self.COLORS_DARK
+
+    def _compute_sector_data(self, quotes, change_key='change_percent'):
+        """Compute sorted sector averages from quotes data."""
+        sector_data = {}
+        for symbol, data in quotes.items():
+            sector = SECTOR_MAP.get(symbol, 'Other')
+            if sector not in sector_data:
+                sector_data[sector] = []
+            sector_data[sector].append(data.get(change_key, 0))
+
+        sector_avg = {k: sum(v)/len(v) for k, v in sector_data.items() if v}
+        sorted_sectors = sorted(sector_avg.items(), key=lambda x: x[1], reverse=True)
+        return [(s, a) for s, a in sorted_sectors if abs(a) >= 0.1][:8]
+
+    def _compute_sector_movers(self, quotes, change_key='change_percent', limit_per_sector=3, max_sectors=6):
+        """Compute stocks grouped by sector for template rendering."""
+        by_sector = {}
+        for symbol, data in quotes.items():
+            sector = SECTOR_MAP.get(symbol, 'Other')
+            if sector == 'Other':
+                continue
+            if sector not in by_sector:
+                by_sector[sector] = []
+            by_sector[sector].append(data)
+
+        sector_activity = {
+            s: sum(abs(d.get(change_key, 0)) for d in stocks)
+            for s, stocks in by_sector.items()
+        }
+        sorted_sectors = sorted(sector_activity.keys(), key=lambda x: sector_activity[x], reverse=True)
+
+        result = []
+        for sector in sorted_sectors[:max_sectors]:
+            stocks = by_sector[sector]
+            movers = sorted(stocks, key=lambda x: abs(x.get(change_key, 0)), reverse=True)[:limit_per_sector]
+            if any(abs(s.get(change_key, 0)) >= 1.0 for s in movers):
+                filtered = [s for s in movers if abs(s.get(change_key, 0)) >= 0.5]
+                if filtered:
+                    result.append((sector, filtered))
+        return result
+
+    def _flatten_news(self, news):
+        """Flatten news dict into list of (symbol, item) tuples."""
+        items = []
+        for symbol, news_list in news.items():
+            for item in news_list[:1]:
+                items.append((symbol, item))
+                break
+        return items
+
+    def generate_weekly_report(self,
+                                weekly_data: Dict[str, dict],
+                                earnings_next_week: List[dict],
+                                dividends_next_week: List[dict],
+                                dashboard_url: str = None,
+                                streaks: list = None,
+                                sector_averages: list = None,
+                                **kwargs) -> str:
+        """Generate weekly summary report using Jinja2 template."""
+        now = datetime.now()
+        week_end = now.strftime("%B %d, %Y")
+        week_start = (now - timedelta(days=7)).strftime("%B %d")
+
+        sorted_weekly = sorted(
+            weekly_data.values(),
+            key=lambda x: x.get('week_change_percent', 0),
+            reverse=True
+        )
+
+        week_gainers = [s for s in sorted_weekly if s.get('week_change_percent', 0) > 0]
+        week_losers_sorted = sorted(
+            [s for s in sorted_weekly if s.get('week_change_percent', 0) < 0],
+            key=lambda x: x.get('week_change_percent', 0)
+        )
+        avg_change = sum(s.get('week_change_percent', 0) for s in weekly_data.values()) / len(weekly_data) if weekly_data else 0
+
+        sorted_sectors = self._compute_sector_data(weekly_data, change_key='week_change_percent')
+
+        # Sector chart items (same as sorted_sectors for bar_chart macro)
+        sector_chart_items = sector_averages if sector_averages else sorted_sectors[:10]
+
+        # Volume movers
+        volume_movers = sorted(
+            [d for d in weekly_data.values() if d.get('volume_ratio', 1) > 1.5],
+            key=lambda x: x.get('volume_ratio', 1),
+            reverse=True
+        )[:6]
+
+        sector_movers = self._compute_sector_movers(weekly_data, change_key='week_change_percent')
+
+        template = self.env.get_template('weekly.html')
+        return template.render(
+            title="Weekly Summary",
+            subtitle=f"Week of {week_start} - {week_end}",
+            dashboard_url=dashboard_url,
+            overview_stats=[
+                ("Total Stocks", str(len(weekly_data)), self.c['text_primary']),
+                ("Week Gainers", str(len(week_gainers)), self.c['green']),
+                ("Week Losers", str(len(week_losers_sorted)), self.c['red']),
+                ("Avg Performance", f"{avg_change:+.2f}%", self.c['green'] if avg_change > 0 else self.c['red']),
+            ],
+            sorted_sectors=sorted_sectors,
+            week_gainers=week_gainers,
+            week_losers=week_losers_sorted,
+            streaks=streaks,
+            volume_movers=volume_movers,
+            sector_chart_items=sector_chart_items,
+            sector_movers=sector_movers,
+            earnings_next_week=earnings_next_week or [],
+            dividends_next_week=dividends_next_week or [],
+        )
+
+    def generate_premarket_report(self,
+                                   futures: Dict[str, dict],
+                                   premarket_data: Dict[str, dict],
+                                   quotes: Dict[str, dict],
+                                   earnings: List[dict],
+                                   dividends: List[dict],
+                                   news: Dict[str, List[dict]],
+                                   market_news: List[dict],
+                                   world_news: List[dict] = None,
+                                   trends_data: Dict[str, dict] = None,
+                                   signal_digest: str = None,
+                                   dashboard_url: str = None) -> str:
+        """Generate pre-market morning report using Jinja2 template."""
+        now = datetime.now()
+        date_str = now.strftime("%A, %B %d, %Y")
+
+        futures_list = [{'name': d['name'], 'change_percent': d.get('change_percent', 0)} for d in futures.values()] if futures else []
+
+        sorted_premarket = sorted(
+            [(s, d) for s, d in premarket_data.items() if d.get('pre_market_change_percent')],
+            key=lambda x: abs(x[1].get('pre_market_change_percent', 0)),
+            reverse=True
+        )
+
+        sorted_sectors = self._compute_sector_data(quotes) if quotes else []
+
+        # Pre-render complex sections that require Python logic (signal digest, trends)
+        signal_digest_html = self._signal_digest_section(signal_digest) if signal_digest else ""
+        trends_html = self._trends_section(trends_data) if trends_data else ""
+
+        template = self.env.get_template('premarket.html')
+        return template.render(
+            title="Pre-Market Briefing",
+            subtitle=date_str,
+            dashboard_url=dashboard_url,
+            world_news=world_news or [],
+            market_news=market_news or [],
+            signal_digest_html=signal_digest_html,
+            trends_html=trends_html,
+            futures_list=futures_list,
+            sorted_premarket=sorted_premarket,
+            sorted_sectors=sorted_sectors,
+            earnings=earnings or [],
+            dividends=dividends or [],
+            news_items=self._flatten_news(news) if news else [],
+        )
+
+    def generate_postmarket_report(self,
+                                    indices: Dict[str, dict],
+                                    quotes: Dict[str, dict],
+                                    postmarket_data: Dict[str, dict],
+                                    news: Dict[str, List[dict]],
+                                    market_news: List[dict] = None,
+                                    world_news: List[dict] = None,
+                                    trends_data: Dict[str, dict] = None,
+                                    signal_digest: str = None,
+                                    dashboard_url: str = None) -> str:
+        """Generate post-market closing report using Jinja2 template."""
+        now = datetime.now()
+        date_str = now.strftime("%A, %B %d, %Y")
+
+        indices_list = [{'name': d['name'], 'change_percent': d.get('change_percent', 0)} for d in indices.values()] if indices else []
+
+        sorted_stocks = sorted(quotes.values(), key=lambda x: x.get('change_percent', 0), reverse=True)
+        gainers = [s for s in sorted_stocks if s.get('change_percent', 0) > 0]
+        losers = sorted(
+            [s for s in sorted_stocks if s.get('change_percent', 0) < 0],
+            key=lambda x: x.get('change_percent', 0)
+        )
+        avg_change = sum(s.get('change_percent', 0) for s in quotes.values()) / len(quotes) if quotes else 0
+
+        sorted_sectors = self._compute_sector_data(quotes)
+
+        # After-hours
+        sorted_afterhours = sorted(
+            [(s, d) for s, d in postmarket_data.items() if d.get('post_market_change_percent')],
+            key=lambda x: abs(x[1].get('post_market_change_percent', 0)),
+            reverse=True
+        )[:8] if postmarket_data else []
+
+        sector_movers = self._compute_sector_movers(quotes)
+
+        signal_digest_html = self._signal_digest_section(signal_digest) if signal_digest else ""
+        trends_html = self._trends_section(trends_data) if trends_data else ""
+
+        template = self.env.get_template('postmarket.html')
+        return template.render(
+            title="Market Close Report",
+            subtitle=date_str,
+            dashboard_url=dashboard_url,
+            world_news=world_news or [],
+            market_news=market_news or [],
+            signal_digest_html=signal_digest_html,
+            trends_html=trends_html,
+            indices_list=indices_list,
+            summary_stats=[
+                ("Gainers", str(len(gainers)), self.c['green']),
+                ("Losers", str(len(losers)), self.c['red']),
+                ("Avg Change", f"{avg_change:+.2f}%", self.c['green'] if avg_change > 0 else self.c['red']),
+            ],
+            sorted_sectors=sorted_sectors,
+            gainers=gainers,
+            losers=losers,
+            sorted_afterhours=sorted_afterhours,
+            sector_movers=sector_movers,
+            news_items=self._flatten_news(news) if news else [],
+        )
 
 
 if __name__ == "__main__":

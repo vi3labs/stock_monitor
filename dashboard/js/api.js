@@ -285,6 +285,36 @@ const API = (() => {
     }
   }
 
+  async function getHistoryReports() {
+    return request('/history/reports');
+  }
+
+  async function getHistoryReportHtml(date) {
+    const response = await fetch(`${BASE_URL}/history/report/${date}/html`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.text();
+  }
+
+  async function getHistorySnapshots(symbol, start, end) {
+    const params = new URLSearchParams();
+    if (symbol) params.set('symbol', symbol);
+    if (start) params.set('start', start);
+    if (end) params.set('end', end);
+    return request(`/history/snapshots?${params}`);
+  }
+
+  async function getWatchlistChanges() {
+    return request('/history/watchlist-changes');
+  }
+
+  async function getStreaks() {
+    return request('/history/streaks');
+  }
+
+  async function getRollingPerformance(period = '1m', n = 5) {
+    return request(`/performance/rolling?period=${period}&n=${n}`);
+  }
+
   return {
     getQuotes,
     getSectors,
@@ -298,6 +328,12 @@ const API = (() => {
     disconnectSSE,
     addTicker,
     updateTicker,
-    deleteTicker
+    deleteTicker,
+    getHistoryReports,
+    getHistoryReportHtml,
+    getHistorySnapshots,
+    getWatchlistChanges,
+    getStreaks,
+    getRollingPerformance
   };
 })();

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "macros/components.html" import header, section_title, stock_row, index_row, headline_item, news_item, calendar_item, sector_bars, spacer, footer %}
+
+{% block content %}
+{{ header(title, subtitle, dashboard_url) }}
+
+{% if world_news %}
+{{ section_title("World & US Headlines") }}
+{% for item in world_news[:6] %}
+{{ headline_item(item.title, item.source ~ " - " ~ item.published, item.link) }}
+{% endfor %}
+{{ spacer(10) }}
+{% endif %}
+
+{% if market_news %}
+{{ section_title("Market News") }}
+{% for item in market_news[:4] %}
+{{ headline_item(item.title, item.source ~ " - " ~ item.published, item.link) }}
+{% endfor %}
+{{ spacer(10) }}
+{% endif %}
+
+{% if signal_digest_html %}
+{{ section_title("Signal Digest") }}
+{{ signal_digest_html }}
+{{ spacer(10) }}
+{% endif %}
+
+{% if trends_html %}
+{{ section_title("Search Trends") }}
+{{ trends_html }}
+{{ spacer(10) }}
+{% endif %}
+
+{% if futures_list %}
+{{ section_title("Futures") }}
+{{ index_row(futures_list) }}
+{% endif %}
+
+{% if sorted_premarket %}
+{{ section_title("Pre-Market Movers") }}
+{% for symbol, data in sorted_premarket[:12] %}
+{{ stock_row(symbol, data.get('name', ''), data.get('pre_market_price', 0), data.get('pre_market_change_percent', 0)) }}
+{% endfor %}
+{{ spacer(10) }}
+{% endif %}
+
+{% if sorted_sectors %}
+{{ section_title("Sector Performance (Prev Close)") }}
+{{ sector_bars(sorted_sectors) }}
+{% endif %}
+
+{% if earnings %}
+{{ section_title("Upcoming Earnings") }}
+{% for e in earnings[:8] %}
+{%- set date_parts = e.date.split('-') -%}
+{{ calendar_item(date_parts[1] ~ "/" ~ date_parts[2], e.symbol, e.get('name', '') ~ " - Earnings") }}
+{% endfor %}
+{{ spacer(10) }}
+{% endif %}
+
+{% if dividends %}
+{{ section_title("Upcoming Ex-Dividend Dates") }}
+{% for d in dividends[:5] %}
+{%- set date_parts = d.ex_date.split('-') -%}
+{%- set yield_str = "Yield: %.2f%%"|format(d.dividend_yield) if d.dividend_yield else "" -%}
+{{ calendar_item(date_parts[1] ~ "/" ~ date_parts[2], d.symbol, yield_str) }}
+{% endfor %}
+{{ spacer(10) }}
+{% endif %}
+
+{% if news_items %}
+{{ section_title("Stock News") }}
+{% for symbol, item in news_items[:5] %}
+{{ news_item(symbol, item.title, item.source ~ " - " ~ item.published, item.link) }}
+{% endfor %}
+{% endif %}
+
+{{ footer() }}
+{% endblock %}

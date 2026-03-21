@@ -21,7 +21,7 @@ const WatchlistComponent = (() => {
   let editingSymbol = null;
 
   const SENTIMENTS = ['Bullish', 'Neutral', 'Bearish', 'Caution'];
-  const STATUSES = ['Watching', 'Holding'];
+  const STATUSES = ['Watching', 'Holding', 'Archived'];
 
   /**
    * Initialize component and event listeners

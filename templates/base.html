@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
+    <style>
+        :root { color-scheme: light dark; }
+        @media (prefers-color-scheme: dark) {
+            body, .body-bg { background-color: {{ colors_dark.bg_dark }} !important; }
+            .card-bg { background-color: {{ colors_dark.bg_card }} !important; }
+            .section-bg { background-color: {{ colors_dark.bg_section }} !important; }
+            .text-primary { color: {{ colors_dark.text_primary }} !important; }
+            .text-secondary { color: {{ colors_dark.text_secondary }} !important; }
+            .text-accent { color: {{ colors_dark.accent }} !important; }
+            .border-b { border-bottom-color: {{ colors_dark.border }} !important; }
+            .border-t { border-top-color: {{ colors_dark.border }} !important; }
+            .text-green { color: {{ colors_dark.green }} !important; }
+            .text-red { color: {{ colors_dark.red }} !important; }
+            .text-neutral { color: {{ colors_dark.neutral }} !important; }
+            .bg-green-subtle { background-color: {{ colors_dark.green }}20 !important; }
+            .bg-red-subtle { background-color: {{ colors_dark.red }}20 !important; }
+            .bg-accent-subtle { background-color: {{ colors_dark.accent }}30 !important; }
+            .accent-border-left { border-left-color: {{ colors_dark.accent }} !important; }
+            .footer-bg { background-color: rgba(0,0,0,0.3) !important; }
+        }
+    </style>
+</head>
+<body class="body-bg" style="margin: 0; padding: 20px; background-color: {{ colors.bg_dark }}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" class="card-bg" style="max-width: 600px; margin: 0 auto; background-color: {{ colors.bg_card }}; border-radius: 12px; overflow: hidden;">
+        {% block content %}{% endblock %}
+    </table>
+</body>
+</html>

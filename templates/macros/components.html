@@ -1,0 +1,223 @@
+{# Shared email component macros #}
+
+{% macro header(title, subtitle, dashboard_url=None) %}
+        <tr>
+            <td style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 30px; text-align: center;">
+                <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">{{ title }}</h1>
+                <p style="margin: 8px 0 0 0; color: #ffffff; font-size: 14px; opacity: 0.9;">{{ subtitle }}</p>
+                {% if dashboard_url %}
+                <a href="{{ dashboard_url }}" style="display: inline-block; margin-top: 12px; padding: 8px 20px; background: rgba(255,255,255,0.2); color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 500;">View Live Dashboard</a>
+                {% endif %}
+            </td>
+        </tr>
+{% endmacro %}
+
+{% macro section_title(title) %}
+        <tr>
+            <td style="padding: 20px 20px 10px 20px;">
+                <h2 class="text-accent" style="margin: 0; color: {{ colors.accent }}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">{{ title }}</h2>
+            </td>
+        </tr>
+{% endmacro %}
+
+{% macro stock_row(symbol, name, price, change_pct, extra_info='') %}
+{%- set change_str = "+%.2f%%"|format(change_pct) if change_pct > 0 else "%.2f%%"|format(change_pct) if change_pct < 0 else "0.00%" -%}
+{%- set color = colors.green if change_pct > 0 else (colors.red if change_pct < 0 else colors.neutral) -%}
+{%- set color_class = 'text-green' if change_pct > 0 else ('text-red' if change_pct < 0 else 'text-neutral') -%}
+{%- set bg_class = 'bg-green-subtle' if change_pct > 0 else ('bg-red-subtle' if change_pct < 0 else '') -%}
+{%- set name_truncated = name[:25] ~ "..." if name|length > 25 else name -%}
+        <tr>
+            <td style="padding: 0 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="border-b" style="border-bottom: 1px solid {{ colors.border }};">
+                    <tr>
+                        <td style="padding: 12px 0;">
+                            <div class="text-primary" style="color: {{ colors.text_primary }}; font-size: 15px; font-weight: 600;">{{ symbol }}</div>
+                            <div class="text-secondary" style="color: {{ colors.text_secondary }}; font-size: 12px;">{{ name_truncated }}</div>
+                        </td>
+                        <td style="padding: 12px 0; text-align: right;">
+                            <div class="text-primary" style="color: {{ colors.text_primary }}; font-size: 15px;">{{ price|format_price }}</div>
+                            <div class="{{ color_class }} {{ bg_class }}" style="display: inline-block; padding: 2px 8px; border-radius: 4px; background-color: {{ color }}20; color: {{ color }}; font-size: 13px; font-weight: 600;">{{ change_str }}</div>
+                            {% if extra_info %}
+                            <div class="text-secondary" style="color: {{ colors.text_secondary }}; font-size: 11px; margin-top: 2px;">{{ extra_info }}</div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+{% endmacro %}
+
+{% macro index_row(items) %}
+{%- set cell_width = (100 / items|length)|int if items else 25 -%}
+        <tr>
+            <td style="padding: 0 20px 20px 20px;">
+                <table cellpadding="0" cellspacing="8" border="0" width="100%">
+                    <tr>
+                    {% for item in items %}
+                        {%- set change_str = "+%.2f%%"|format(item.change_percent) if item.change_percent > 0 else "%.2f%%"|format(item.change_percent) if item.change_percent < 0 else "0.00%" -%}
+                        {%- set color = colors.green if item.change_percent > 0 else (colors.red if item.change_percent < 0 else colors.neutral) -%}
+                        {%- set color_class = 'text-green' if item.change_percent > 0 else ('text-red' if item.change_percent < 0 else 'text-neutral') -%}
+                        <td width="{{ cell_width }}%" class="section-bg" style="padding: 8px; text-align: center; background-color: {{ colors.bg_section }}; border-radius: 8px;">
+                            <div class="text-secondary" style="color: {{ colors.text_secondary }}; font-size: 11px; margin-bottom: 4px;">{{ item.name }}</div>
+                            <div class="{{ color_class }}" style="color: {{ color }}; font-size: 16px; font-weight: 600;">{{ change_str }}</div>
+                        </td>
+                    {% endfor %}
+                    </tr>
+                </table>
+            </td>
+        </tr>
+{% endmacro %}
+
+{% macro calendar_item(date_str, symbol, event) %}
+        <tr>
+            <td style="padding: 0 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="border-b" style="border-bottom: 1px solid {{ colors.border }};">
+                    <tr>
+                        <td width="70" style="padding: 10px 0;">
+                            <div class="bg-accent-subtle text-accent" style="background-color: {{ colors.accent }}30; color: {{ colors.accent }}; padding: 8px; border-radius: 6px; font-size: 12px; font-weight: 600; text-align: center;">{{ date_str }}</div>
+                        </td>
+                        <td style="padding: 10px 0 10px 12px;">
+                            <div class="text-primary" style="color: {{ colors.text_primary }}; font-size: 14px; font-weight: 600;">{{ symbol }}</div>
+                            <div class="text-secondary" style="color: {{ colors.text_secondary }}; font-size: 12px;">{{ event }}</div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+{% endmacro %}
+
+{% macro news_item(symbol, title, source, link) %}
+{%- set title_truncated = title[:80] ~ "..." if title|length > 80 else title -%}
+        <tr>
+            <td style="padding: 0 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="border-b" style="border-bottom: 1px solid {{ colors.border }};">
+                    <tr>
+                        <td style="padding: 12px 0;">
+                            <div class="text-accent" style="color: {{ colors.accent }}; font-size: 11px; font-weight: 600; margin-bottom: 4px;">{{ symbol }}</div>
+                            <a href="{{ link }}" class="text-primary" style="color: {{ colors.text_primary }}; font-size: 13px; text-decoration: none;">{{ title_truncated }}</a>
+                            <div class="text-secondary" style="color: {{ colors.text_secondary }}; font-size: 11px; margin-top: 4px;">{{ source }}</div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+{% endmacro %}
+
+{% macro headline_item(title, source, link) %}
+{%- set title_truncated = title[:90] ~ "..." if title|length > 90 else title -%}
+        <tr>
+            <td style="padding: 0 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="border-b" style="border-bottom: 1px solid {{ colors.border }};">
+                    <tr>
+                        <td style="padding: 10px 0;">
+                            <a href="{{ link }}" class="text-primary" style="color: {{ colors.text_primary }}; font-size: 13px; text-decoration: none; line-height: 1.4;">{{ title_truncated }}</a>
+                            <div class="text-secondary" style="color: {{ colors.text_secondary }}; font-size: 11px; margin-top: 4px;">{{ source }}</div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+{% endmacro %}
+
+{% macro summary_box(stats) %}
+        <tr>
+            <td style="padding: 0 20px 20px 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="section-bg" style="background-color: {{ colors.bg_section }}; border-radius: 8px; padding: 16px;">
+                    <tr><td>
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="padding: 12px;">
+                            {% for label, value, color in stats %}
+                            {%- set val_class = 'text-green' if color == colors.green else ('text-red' if color == colors.red else ('text-primary' if color == colors.text_primary else '')) -%}
+                            <tr>
+                                <td class="text-secondary" style="padding: 6px 0; color: {{ colors.text_secondary }}; font-size: 13px;">{{ label }}</td>
+                                <td class="{{ val_class }}" style="padding: 6px 0; text-align: right; color: {{ color }}; font-size: 14px; font-weight: 600;">{{ value }}</td>
+                            </tr>
+                            {% endfor %}
+                        </table>
+                    </td></tr>
+                </table>
+            </td>
+        </tr>
+{% endmacro %}
+
+{% macro sector_bars(sectors) %}
+{%- set max_abs = sectors|map(attribute=1)|map('abs')|max if sectors else 1 -%}
+        <tr>
+            <td style="padding: 0 20px 20px 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="section-bg" style="background-color: {{ colors.bg_section }}; border-radius: 8px;">
+                    <tr><td style="padding: 16px;">
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                            {% for sector, avg in sectors %}
+                            {%- set color = colors.green if avg > 0 else colors.red -%}
+                            {%- set color_class = 'text-green' if avg > 0 else 'text-red' -%}
+                            {%- set bg_class = 'bg-green-subtle' if avg > 0 else 'bg-red-subtle' -%}
+                            {%- set bar_width = [((avg|abs / max_abs * 60)|int), 60]|min -%}
+                            {%- set change_str = "+%.2f%%"|format(avg) if avg > 0 else "%.2f%%"|format(avg) -%}
+                            <tr>
+                                <td style="padding: 8px 0; width: 120px;">
+                                    <span class="text-primary" style="color: {{ colors.text_primary }}; font-size: 13px;">{{ sector }}</span>
+                                </td>
+                                <td style="padding: 8px 0;">
+                                    <div class="{{ bg_class }}" style="background-color: {{ color }}30; height: 20px; width: {{ bar_width }}%; border-radius: 4px; display: inline-block;"></div>
+                                    <span class="{{ color_class }}" style="color: {{ color }}; font-size: 13px; font-weight: 600; margin-left: 8px;">{{ change_str }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </table>
+                    </td></tr>
+                </table>
+            </td>
+        </tr>
+{% endmacro %}
+
+{% macro bar_chart(items, max_bars=10) %}
+{#- items: list of (label, value) tuples. value is a percentage change. -#}
+{%- set display_items = items[:max_bars] -%}
+{%- set max_abs = display_items|map(attribute=1)|map('abs')|max if display_items else 1 -%}
+        <tr>
+            <td style="padding: 0 20px 20px 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="section-bg" style="background-color: {{ colors.bg_section }}; border-radius: 8px;">
+                    <tr><td style="padding: 16px;">
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                            {% for label, value in display_items %}
+                            {%- set color = colors.green if value > 0 else (colors.red if value < 0 else colors.neutral) -%}
+                            {%- set color_class = 'text-green' if value > 0 else ('text-red' if value < 0 else 'text-neutral') -%}
+                            {%- set bg_class = 'bg-green-subtle' if value > 0 else ('bg-red-subtle' if value < 0 else '') -%}
+                            {%- set bar_width = [((value|abs / max_abs * 55)|int), 55]|min if max_abs > 0 else 0 -%}
+                            {%- set change_str = "+%.2f%%"|format(value) if value > 0 else "%.2f%%"|format(value) -%}
+                            <tr>
+                                <td style="padding: 6px 0; width: 70px;">
+                                    <span class="text-primary" style="color: {{ colors.text_primary }}; font-size: 13px; font-weight: 600;">{{ label }}</span>
+                                </td>
+                                <td style="padding: 6px 0;">
+                                    <div class="{{ bg_class }}" style="background-color: {{ color }}30; height: 18px; width: {{ bar_width }}%; border-radius: 3px; display: inline-block; vertical-align: middle;"></div>
+                                    <span class="{{ color_class }}" style="color: {{ color }}; font-size: 12px; font-weight: 600; margin-left: 6px; vertical-align: middle;">{{ change_str }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </table>
+                    </td></tr>
+                </table>
+            </td>
+        </tr>
+{% endmacro %}
+
+{% macro streak_badge(symbol, direction, weeks) %}
+{%- set color = colors.green if direction == 'up' else colors.red -%}
+{%- set color_class = 'text-green' if direction == 'up' else 'text-red' -%}
+{%- set arrow = '&#9650;' if direction == 'up' else '&#9660;' -%}
+        <span class="{{ color_class }}" style="display: inline-block; padding: 3px 10px; border-radius: 12px; background-color: {{ color }}15; color: {{ color }}; font-size: 12px; font-weight: 600; margin: 2px 4px;">
+            {{ arrow }} {{ symbol }} {{ weeks }}w
+        </span>
+{% endmacro %}
+
+{% macro spacer(height=10) %}
+        <tr><td style="height: {{ height }}px;"></td></tr>
+{% endmacro %}
+
+{% macro footer() %}
+        <tr>
+            <td class="footer-bg section-bg border-t" style="padding: 20px; text-align: center; background-color: {{ colors.bg_section }}; border-top: 1px solid {{ colors.border }};">
+                <p class="text-secondary" style="margin: 0; color: {{ colors.text_secondary }}; font-size: 12px;">Generated by Stock Monitor &bull; Data from Yahoo Finance</p>
+            </td>
+        </tr>
+{% endmacro %}

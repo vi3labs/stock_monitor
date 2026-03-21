@@ -248,6 +248,14 @@ def main():
         logger.info("Generating comparison chart...")
         generate_comparison_chart(weekly_data, comparison_chart_path)
         
+        # Try to get streak data for enhanced email
+        streaks = None
+        try:
+            from db import get_all_streaks
+            streaks = get_all_streaks()
+        except Exception:
+            pass  # DB not available yet, that's fine
+
         # Generate email
         logger.info("Generating email...")
         html_content = email_generator.generate_weekly_report(
@@ -255,6 +263,7 @@ def main():
             earnings_next_week=earnings,
             dividends_next_week=dividends,
             dashboard_url='http://localhost:3006',
+            streaks=streaks,
         )
         
         # Save a local copy
@@ -262,7 +271,68 @@ def main():
         with open(debug_path, 'w') as f:
             f.write(html_content)
         logger.info(f"Saved debug copy to {debug_path}")
-        
+
+        # Save to database
+        try:
+            import db as stock_db
+            from notion_sync import SECTOR_MAP
+            stock_db.init_db()
+
+            report_date = datetime.now().strftime('%Y-%m-%d')
+
+            # Compute stats for metadata
+            sorted_weekly = sorted(weekly_data.values(), key=lambda x: x.get('week_change_percent', 0), reverse=True)
+            gainers_count = sum(1 for s in weekly_data.values() if s.get('week_change_percent', 0) > 0)
+            losers_count = sum(1 for s in weekly_data.values() if s.get('week_change_percent', 0) < 0)
+            changes = [s.get('week_change_percent', 0) for s in weekly_data.values()]
+            avg_change = sum(changes) / len(changes) if changes else 0
+
+            top_gainer = sorted_weekly[0] if sorted_weekly else {}
+            top_loser = sorted_weekly[-1] if sorted_weekly else {}
+
+            stock_db.save_report_metadata(
+                report_date=report_date,
+                file_path=debug_path,
+                total_stocks=len(weekly_data),
+                gainers=gainers_count,
+                losers=losers_count,
+                avg_change_pct=round(avg_change, 2),
+                top_gainer=top_gainer.get('symbol', ''),
+                top_gainer_pct=top_gainer.get('week_change_percent', 0),
+                top_loser=top_loser.get('symbol', ''),
+                top_loser_pct=top_loser.get('week_change_percent', 0),
+            )
+
+            # Save individual snapshots
+            snapshots = []
+            for sym, data_item in weekly_data.items():
+                snapshots.append((
+                    sym,
+                    data_item.get('current_price') or data_item.get('price'),
+                    data_item.get('week_change_percent', 0),
+                    data_item.get('volume'),
+                    SECTOR_MAP.get(sym),
+                ))
+            stock_db.save_weekly_snapshots_batch(report_date, snapshots)
+
+            # Watchlist diff
+            import json as _json
+            watchlist_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'last_watchlist.json')
+            if os.path.exists(watchlist_path):
+                with open(watchlist_path, 'r') as wf:
+                    last_wl = _json.load(wf)
+                prev_symbols = set(last_wl.get('tickers', []))
+                current_symbols = set(symbols)
+                added = current_symbols - prev_symbols
+                removed = prev_symbols - current_symbols
+                if added or removed:
+                    stock_db.save_watchlist_diff(report_date, list(added), list(removed))
+                    logger.info(f"Watchlist changes: +{len(added)} added, -{len(removed)} removed")
+
+            logger.info(f"Saved {len(snapshots)} snapshots to database")
+        except Exception as e:
+            logger.warning(f"Failed to save to database (non-fatal): {e}")
+
         # Print summary to console
         logger.info("\n" + "=" * 40)
         logger.info("WEEKLY SUMMARY")

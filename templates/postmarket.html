@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% from "macros/components.html" import header, section_title, stock_row, index_row, summary_box, headline_item, news_item, sector_bars, spacer, footer %}
+
+{% block content %}
+{{ header(title, subtitle, dashboard_url) }}
+
+{% if world_news %}
+{{ section_title("World & US Headlines") }}
+{% for item in world_news[:6] %}
+{{ headline_item(item.title, item.source ~ " - " ~ item.published, item.link) }}
+{% endfor %}
+{{ spacer(10) }}
+{% endif %}
+
+{% if market_news %}
+{{ section_title("Market News") }}
+{% for item in market_news[:4] %}
+{{ headline_item(item.title, item.source ~ " - " ~ item.published, item.link) }}
+{% endfor %}
+{{ spacer(10) }}
+{% endif %}
+
+{% if signal_digest_html %}
+{{ section_title("Signal Digest") }}
+{{ signal_digest_html }}
+{{ spacer(10) }}
+{% endif %}
+
+{% if trends_html %}
+{{ section_title("Search Trends") }}
+{{ trends_html }}
+{{ spacer(10) }}
+{% endif %}
+
+{% if indices_list %}
+{{ section_title("Market Indices") }}
+{{ index_row(indices_list[:4]) }}
+{% endif %}
+
+{{ section_title("Watchlist Summary") }}
+{{ summary_box(summary_stats) }}
+
+{% if sorted_sectors %}
+{{ section_title("Sector Performance") }}
+{{ sector_bars(sorted_sectors) }}
+{% endif %}
+
+{{ section_title("Top Gainers") }}
+{% for stock in gainers[:8] %}
+{%- set vol_ratio = stock.get('volume_ratio', 1) -%}
+{%- set extra = "%.1fx vol"|format(vol_ratio) if vol_ratio > 1.5 else "" -%}
+{{ stock_row(stock.symbol, stock.get('name', ''), stock.get('price', 0), stock.get('change_percent', 0), extra) }}
+{% endfor %}
+{{ spacer(10) }}
+
+{{ section_title("Top Losers") }}
+{% for stock in losers[:8] %}
+{%- set vol_ratio = stock.get('volume_ratio', 1) -%}
+{%- set extra = "%.1fx vol"|format(vol_ratio) if vol_ratio > 1.5 else "" -%}
+{{ stock_row(stock.symbol, stock.get('name', ''), stock.get('price', 0), stock.get('change_percent', 0), extra) }}
+{% endfor %}
+{{ spacer(10) }}
+
+{% if sorted_afterhours %}
+{{ section_title("After-Hours Movement") }}
+{% for symbol, data in sorted_afterhours[:8] %}
+{{ stock_row(symbol, data.get('name', ''), data.get('post_market_price', 0), data.get('post_market_change_percent', 0)) }}
+{% endfor %}
+{{ spacer(10) }}
+{% endif %}
+
+{% if sector_movers %}
+{{ section_title("Movers by Sector") }}
+{% for sector_name, movers in sector_movers %}
+        <tr>
+            <td style="padding: 12px 20px 4px 20px;">
+                <span class="text-accent" style="color: {{ colors.accent }}; font-size: 12px; font-weight: 600; text-transform: uppercase;">{{ sector_name }}</span>
+            </td>
+        </tr>
+{% for stock in movers %}
+{%- set change_pct = stock.get('change_percent', 0) -%}
+{%- set change_str = "+%.2f%%"|format(change_pct) if change_pct > 0 else "%.2f%%"|format(change_pct) -%}
+{%- set color = colors.green if change_pct > 0 else colors.red -%}
+{%- set color_class = 'text-green' if change_pct > 0 else 'text-red' -%}
+        <tr>
+            <td style="padding: 0 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                    <tr>
+                        <td style="padding: 6px 0;">
+                            <span class="text-primary" style="color: {{ colors.text_primary }}; font-size: 14px; font-weight: 500;">{{ stock.symbol }}</span>
+                        </td>
+                        <td style="padding: 6px 0; text-align: right;">
+                            <span class="{{ color_class }}" style="color: {{ color }}; font-size: 14px; font-weight: 600;">{{ change_str }}</span>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+{% endfor %}
+{% endfor %}
+{{ spacer(10) }}
+{% endif %}
+
+{% if news_items %}
+{{ section_title("Stock News") }}
+{% for symbol, item in news_items[:5] %}
+{{ news_item(symbol, item.title, item.source ~ " - " ~ item.published, item.link) }}
+{% endfor %}
+{{ spacer(10) }}
+{% endif %}
+
+{{ footer() }}
+{% endblock %}

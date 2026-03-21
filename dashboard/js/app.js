@@ -38,11 +38,14 @@ const App = (() => {
     // Set up event listeners
     setupEventListeners();
 
+    // Initialize router
+    Router.init();
+
     // Wait for server to be ready, then load data
     await waitForServerAndLoad();
 
-    // SSE and auto-refresh disabled — data refreshes only on explicit user action
-    // (click Refresh button or press 'r')
+    // Enable auto-refresh during market hours
+    startAutoRefresh();
 
     // Update market status indicator
     updateMarketStatus();
@@ -256,6 +259,12 @@ const App = (() => {
         document.activeElement.blur();
         e.preventDefault();
       }
+      return;
+    }
+
+    // Dashboard-only shortcuts: skip on other pages
+    const dashboardOnlyKeys = ['j', 'ArrowDown', 'k', 'ArrowUp', 'Enter', 'o', 'e'];
+    if (Router.getActivePage() !== 'dashboard' && dashboardOnlyKeys.includes(e.key)) {
       return;
     }
 
