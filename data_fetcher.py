@@ -619,6 +619,15 @@ class StockDataFetcher:
                     change = 0
                     change_pct = 0
 
+                # Fetch intraday history for sparkline
+                intraday = []
+                try:
+                    hist = ticker.history(period='1d', interval='15m')
+                    if hist is not None and not hist.empty:
+                        intraday = hist['Close'].dropna().tolist()
+                except Exception:
+                    pass
+
                 return {
                     'symbol': symbol,
                     'name': indices[symbol],
@@ -627,6 +636,7 @@ class StockDataFetcher:
                     'change_percent': change_pct,
                     'pre_market_price': full_info.get('preMarketPrice'),
                     'pre_market_change': full_info.get('preMarketChangePercent'),
+                    'intraday': intraday,
                 }
             except Exception as e:
                 logger.warning(f"Error fetching index {symbol}: {e}")

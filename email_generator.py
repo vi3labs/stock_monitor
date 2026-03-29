@@ -1137,6 +1137,21 @@ class JinjaEmailGenerator(EmailGenerator):
         self.env.globals['colors'] = self.COLORS
         self.env.globals['colors_dark'] = self.COLORS_DARK
 
+    @staticmethod
+    def _sparkline(values, length=12):
+        """Convert a list of numeric values into a Unicode sparkline string."""
+        if not values or len(values) < 2:
+            return ''
+        # Downsample to target length
+        if len(values) > length:
+            step = len(values) / length
+            values = [values[int(i * step)] for i in range(length)]
+        blocks = '▁▂▃▄▅▆▇█'
+        lo, hi = min(values), max(values)
+        if hi == lo:
+            return blocks[4] * len(values)
+        return ''.join(blocks[int((v - lo) / (hi - lo) * 7)] for v in values)
+
     def _compute_sector_data(self, quotes, change_key='change_percent'):
         """Compute sorted sector averages from quotes data."""
         sector_data = {}
@@ -1309,7 +1324,11 @@ class JinjaEmailGenerator(EmailGenerator):
         now = datetime.now()
         date_str = now.strftime("%A, %B %d, %Y")
 
-        indices_list = [{'name': d['name'], 'change_percent': d.get('change_percent', 0)} for d in indices.values()] if indices else []
+        indices_list = [{
+            'name': d['name'],
+            'change_percent': d.get('change_percent', 0),
+            'sparkline': self._sparkline(d.get('intraday', [])),
+        } for d in indices.values()] if indices else []
 
         sorted_stocks = sorted(quotes.values(), key=lambda x: x.get('change_percent', 0), reverse=True)
         gainers = [s for s in sorted_stocks if s.get('change_percent', 0) > 0]

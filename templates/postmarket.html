@@ -4,6 +4,11 @@
 {% block content %}
 {{ header(title, subtitle, dashboard_url) }}
 
+{% if indices_list %}
+{{ section_title("Market Indices") }}
+{{ index_row(indices_list[:4]) }}
+{% endif %}
+
 {% if world_news %}
 {{ section_title("World & US Headlines") }}
 {% for item in world_news[:6] %}
@@ -30,11 +35,6 @@
 {{ section_title("Search Trends") }}
 {{ trends_html }}
 {{ spacer(10) }}
-{% endif %}
-
-{% if indices_list %}
-{{ section_title("Market Indices") }}
-{{ index_row(indices_list[:4]) }}
 {% endif %}
 
 {{ section_title("Watchlist Summary") }}

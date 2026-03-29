@@ -59,6 +59,9 @@
                         {%- set color_class = 'text-green' if item.change_percent > 0 else ('text-red' if item.change_percent < 0 else 'text-neutral') -%}
                         <td width="{{ cell_width }}%" class="section-bg" style="padding: 8px; text-align: center; background-color: {{ colors.bg_section }}; border-radius: 8px;">
                             <div class="text-secondary" style="color: {{ colors.text_secondary }}; font-size: 11px; margin-bottom: 4px;">{{ item.name }}</div>
+                            {% if item.sparkline %}
+                            <div class="{{ color_class }}" style="color: {{ color }}; font-size: 11px; letter-spacing: 1px; margin-bottom: 2px;">{{ item.sparkline }}</div>
+                            {% endif %}
                             <div class="{{ color_class }}" style="color: {{ color }}; font-size: 16px; font-weight: 600;">{{ change_str }}</div>
                         </td>
                     {% endfor %}
