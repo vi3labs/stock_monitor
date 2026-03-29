@@ -31,7 +31,7 @@
                 <table cellpadding="0" cellspacing="0" border="0" width="100%" class="border-b" style="border-bottom: 1px solid {{ colors.border }};">
                     <tr>
                         <td style="padding: 12px 0;">
-                            <div class="text-primary" style="color: {{ colors.text_primary }}; font-size: 15px; font-weight: 600;">{{ symbol }}</div>
+                            <a href="https://www.tradingview.com/symbols/{{ symbol }}/" style="color: {{ colors.text_primary }}; font-size: 15px; font-weight: 600; text-decoration: none;">{{ symbol }}</a>
                             <div class="text-secondary" style="color: {{ colors.text_secondary }}; font-size: 12px;">{{ name_truncated }}</div>
                         </td>
                         <td style="padding: 12px 0; text-align: right;">
@@ -77,7 +77,7 @@
                             <div class="bg-accent-subtle text-accent" style="background-color: {{ colors.accent }}30; color: {{ colors.accent }}; padding: 8px; border-radius: 6px; font-size: 12px; font-weight: 600; text-align: center;">{{ date_str }}</div>
                         </td>
                         <td style="padding: 10px 0 10px 12px;">
-                            <div class="text-primary" style="color: {{ colors.text_primary }}; font-size: 14px; font-weight: 600;">{{ symbol }}</div>
+                            <a href="https://www.tradingview.com/symbols/{{ symbol }}/" style="color: {{ colors.text_primary }}; font-size: 14px; font-weight: 600; text-decoration: none;">{{ symbol }}</a>
                             <div class="text-secondary" style="color: {{ colors.text_secondary }}; font-size: 12px;">{{ event }}</div>
                         </td>
                     </tr>
@@ -93,7 +93,7 @@
                 <table cellpadding="0" cellspacing="0" border="0" width="100%" class="border-b" style="border-bottom: 1px solid {{ colors.border }};">
                     <tr>
                         <td style="padding: 12px 0;">
-                            <div class="text-accent" style="color: {{ colors.accent }}; font-size: 11px; font-weight: 600; margin-bottom: 4px;">{{ symbol }}</div>
+                            <a href="https://www.tradingview.com/symbols/{{ symbol }}/" style="color: {{ colors.accent }}; font-size: 11px; font-weight: 600; margin-bottom: 4px; text-decoration: none; display: block;">{{ symbol }}</a>
                             <a href="{{ link }}" class="text-primary" style="color: {{ colors.text_primary }}; font-size: 13px; text-decoration: none;">{{ title_truncated }}</a>
                             <div class="text-secondary" style="color: {{ colors.text_secondary }}; font-size: 11px; margin-top: 4px;">{{ source }}</div>
                         </td>
@@ -206,7 +206,7 @@
 {%- set color_class = 'text-green' if direction == 'up' else 'text-red' -%}
 {%- set arrow = '&#9650;' if direction == 'up' else '&#9660;' -%}
         <span class="{{ color_class }}" style="display: inline-block; padding: 3px 10px; border-radius: 12px; background-color: {{ color }}15; color: {{ color }}; font-size: 12px; font-weight: 600; margin: 2px 4px;">
-            {{ arrow }} {{ symbol }} {{ weeks }}w
+            <a href="https://www.tradingview.com/symbols/{{ symbol }}/" style="color: inherit; text-decoration: none;">{{ arrow }} {{ symbol }} {{ weeks }}w</a>
         </span>
 {% endmacro %}
 
