@@ -29,6 +29,7 @@ from typing import Dict, List, Tuple
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from functools import wraps
 from flask import Flask, jsonify, request, Response, send_from_directory
 from flask_cors import CORS
 
@@ -47,7 +48,28 @@ logger = logging.getLogger(__name__)
 # Create Flask app
 DASHBOARD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'dashboard')
 app = Flask(__name__, static_folder=DASHBOARD_DIR, static_url_path='/dashboard')
-CORS(app)  # Enable CORS for frontend requests
+CORS(app, origins=['http://localhost:3006'])
+
+# API key for write operations — loaded from env or .env file
+DASHBOARD_API_KEY = os.environ.get('DASHBOARD_API_KEY', '')
+if not DASHBOARD_API_KEY:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
+    DASHBOARD_API_KEY = os.environ.get('DASHBOARD_API_KEY', '')
+
+
+def require_api_key(f):
+    """Decorator that checks X-API-Key header on write endpoints."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not DASHBOARD_API_KEY:
+            logger.warning("DASHBOARD_API_KEY not set — write endpoints are unprotected")
+            return f(*args, **kwargs)
+        key = request.headers.get('X-API-Key', '')
+        if not key or key != DASHBOARD_API_KEY:
+            return jsonify({'error': 'Unauthorized'}), 401
+        return f(*args, **kwargs)
+    return decorated
 
 # Cache configuration
 CACHE_DURATION_MINUTES = 5
@@ -472,6 +494,7 @@ def api_earnings():
 
 
 @app.route('/api/watchlist', methods=['POST'])
+@require_api_key
 def api_add_ticker():
     """Add a new ticker to the Notion watchlist."""
     try:
@@ -519,6 +542,7 @@ def api_add_ticker():
 
 
 @app.route('/api/watchlist/<symbol>', methods=['PATCH'])
+@require_api_key
 def api_update_ticker(symbol):
     """Update metadata for an existing ticker in the Notion watchlist."""
     try:
@@ -563,6 +587,7 @@ def api_update_ticker(symbol):
 
 
 @app.route('/api/watchlist/<symbol>', methods=['DELETE'])
+@require_api_key
 def api_delete_ticker(symbol):
     """Archive a ticker from the Notion watchlist (sets archived=true)."""
     try:

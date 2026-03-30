@@ -5,6 +5,7 @@
 
 const API = (() => {
   const BASE_URL = 'http://localhost:5001/api';
+  const API_KEY = localStorage.getItem('dashboard_api_key') || '';
   const CACHE_TTL = Infinity; // Cache persists until explicit refresh
 
   // In-memory cache
@@ -215,7 +216,7 @@ const API = (() => {
     try {
       const response = await fetch(`${BASE_URL}/watchlist`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
         body: JSON.stringify(data)
       });
 
@@ -242,7 +243,7 @@ const API = (() => {
     try {
       const response = await fetch(`${BASE_URL}/watchlist/${encodeURIComponent(symbol)}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
         body: JSON.stringify(data)
       });
 
@@ -269,6 +270,7 @@ const API = (() => {
     try {
       const response = await fetch(`${BASE_URL}/watchlist/${encodeURIComponent(symbol)}`, {
         method: 'DELETE',
+        headers: { 'X-API-Key': API_KEY },
       });
 
       const result = await response.json();
