@@ -105,6 +105,8 @@ class EmailGenerator:
             .bg-accent-subtle {{ background-color: {d['accent']}30 !important; }}
             .accent-border-left {{ border-left-color: {d['accent']} !important; }}
             .footer-bg {{ background-color: rgba(0,0,0,0.3) !important; }}
+            a.text-primary, .text-primary a {{ color: {d['text_primary']} !important; }}
+            a.text-accent, .text-accent a {{ color: {d['accent']} !important; }}
         }}
     </style>
 </head>
