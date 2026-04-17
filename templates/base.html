@@ -27,6 +27,22 @@
             a.text-primary, .text-primary a { color: {{ colors_dark.text_primary }} !important; }
             a.text-accent, .text-accent a { color: {{ colors_dark.accent }} !important; }
         }
+        @media only screen and (max-width: 480px) {
+            body, .body-bg { padding: 8px !important; }
+            .card-bg { border-radius: 8px !important; }
+            .m-header { padding: 22px 16px !important; }
+            .m-header-title { font-size: 20px !important; }
+            .m-header-sub { font-size: 13px !important; }
+            .m-section-title { padding: 16px 14px 8px 14px !important; }
+            .m-pad-h { padding-left: 14px !important; padding-right: 14px !important; }
+            .m-pad-h-b { padding: 0 14px 14px 14px !important; }
+            .m-index-table { border-spacing: 4px !important; }
+            .m-index-cell { padding: 6px 3px !important; }
+            .m-index-name { font-size: 10px !important; }
+            .m-index-spark { font-size: 9px !important; letter-spacing: 0 !important; }
+            .m-index-val { font-size: 13px !important; }
+            .m-footer { padding: 16px 14px !important; }
+        }
     </style>
 </head>
 <body class="body-bg" style="margin: 0; padding: 20px; background-color: {{ colors.bg_dark }}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">

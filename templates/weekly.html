@@ -28,7 +28,7 @@
 {% if streaks %}
 {{ section_title("Streak Watch") }}
         <tr>
-            <td style="padding: 0 20px 20px 20px;">
+            <td class="m-pad-h-b" style="padding: 0 20px 20px 20px;">
                 <table cellpadding="0" cellspacing="0" border="0" width="100%" class="section-bg" style="background-color: {{ colors.bg_section }}; border-radius: 8px;">
                     <tr><td style="padding: 16px; line-height: 2.2;">
                         {% for s in streaks[:12] %}
@@ -61,7 +61,7 @@
 {{ section_title("Movers by Sector") }}
 {% for sector_name, movers in sector_movers %}
         <tr>
-            <td style="padding: 12px 20px 4px 20px;">
+            <td class="m-pad-h" style="padding: 12px 20px 4px 20px;">
                 <span class="text-accent" style="color: {{ colors.accent }}; font-size: 12px; font-weight: 600; text-transform: uppercase;">{{ sector_name }}</span>
             </td>
         </tr>
@@ -71,7 +71,7 @@
 {%- set color = colors.green if change_pct > 0 else colors.red -%}
 {%- set color_class = 'text-green' if change_pct > 0 else 'text-red' -%}
         <tr>
-            <td style="padding: 0 20px;">
+            <td class="m-pad-h" style="padding: 0 20px;">
                 <table cellpadding="0" cellspacing="0" border="0" width="100%">
                     <tr>
                         <td style="padding: 6px 0;">
