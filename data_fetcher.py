@@ -51,7 +51,8 @@ class StockDataFetcher:
         cache_duration_minutes: int = 5,
         max_workers: int = DEFAULT_MAX_WORKERS,
         batch_size: int = DEFAULT_BATCH_SIZE,
-        batch_delay: float = DEFAULT_BATCH_DELAY
+        batch_delay: float = DEFAULT_BATCH_DELAY,
+        crypto_overrides: Optional[Dict[str, str]] = None,
     ):
         self.symbols = symbols
         self.cache_duration = cache_duration_minutes
@@ -67,6 +68,56 @@ class StockDataFetcher:
         # Separate crypto symbols (they have different behavior)
         self.crypto_symbols = [s for s in symbols if s.endswith('-USD')]
         self.stock_symbols = [s for s in symbols if not s.endswith('-USD')]
+
+        # CoinGecko fallback for crypto symbols yfinance doesn't list (e.g. small-cap tokens).
+        # Lazy-init on first miss to avoid the coin-list fetch when not needed.
+        self._crypto_overrides = crypto_overrides or {}
+        self._coingecko = None
+        self._coingecko_lock = threading.Lock()
+
+    def _get_coingecko(self):
+        """Lazy-init the CoinGecko fallback fetcher."""
+        if self._coingecko is None:
+            with self._coingecko_lock:
+                if self._coingecko is None:
+                    from coingecko_fetcher import CoinGeckoFetcher
+                    self._coingecko = CoinGeckoFetcher(
+                        overrides=self._crypto_overrides,
+                        cache_duration_minutes=self.cache_duration,
+                    )
+        return self._coingecko
+
+    def _crypto_fallback_quotes(self, results: Dict[str, dict]) -> None:
+        """Fill in missing/empty crypto quotes from CoinGecko, in place."""
+        missing = [
+            s for s in self.crypto_symbols
+            if s not in results or not (results.get(s) or {}).get("price")
+        ]
+        if not missing:
+            return
+        cg = self._get_coingecko()
+        for sym in missing:
+            quote = cg.get_quote(sym)
+            if quote:
+                results[sym] = quote
+                logger.info(f"CoinGecko fallback resolved {sym} → ${quote['price']:.4f}")
+
+    def _crypto_fallback_weekly(self, results: Dict[str, dict]) -> None:
+        """Fill in missing crypto weekly performance from CoinGecko, in place."""
+        missing = [
+            s for s in self.crypto_symbols
+            if s not in results or not (results.get(s) or {}).get("daily_closes")
+        ]
+        if not missing:
+            return
+        cg = self._get_coingecko()
+        for sym in missing:
+            weekly = cg.get_weekly(sym)
+            if weekly:
+                results[sym] = weekly
+                logger.info(
+                    f"CoinGecko fallback weekly for {sym} ({weekly['week_change_percent']:+.2f}%)"
+                )
     
     def _is_cache_valid(self, key: str) -> bool:
         """Check if cached data is still valid (thread-safe)."""
@@ -227,6 +278,9 @@ class StockDataFetcher:
 
             # Parallel extraction of quote data
             results = self._parallel_fetch(symbols, extract_quote_data, "quotes")
+
+            # Fall back to CoinGecko for any crypto symbols yfinance missed.
+            self._crypto_fallback_quotes(results)
 
             elapsed = time.time() - start_time
             logger.info(f"Fetched {len(results)} quotes in {elapsed:.2f}s")
@@ -574,6 +628,9 @@ class StockDataFetcher:
                 return None
 
         results = self._parallel_fetch(self.symbols, fetch_weekly, "weekly performance")
+
+        # Fall back to CoinGecko for any crypto symbols yfinance missed.
+        self._crypto_fallback_weekly(results)
 
         elapsed = time.time() - start_time
         logger.info(f"Fetched weekly performance for {len(results)} symbols in {elapsed:.2f}s")

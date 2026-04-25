@@ -37,6 +37,12 @@ from data_fetcher import StockDataFetcher
 from news_fetcher import NewsFetcher
 from notion_watchlist import get_watchlist, get_watchlist_with_metadata, add_to_watchlist, update_stock_metadata
 from notion_sync import SECTOR_MAP, COMPANY_NAMES
+from config_loader import load_config
+
+try:
+    CRYPTO_OVERRIDES = load_config().get('crypto_overrides', {}) or {}
+except Exception:
+    CRYPTO_OVERRIDES = {}
 
 # Configure logging
 logging.basicConfig(
@@ -140,7 +146,11 @@ class DashboardDataService:
             return {}
 
         # Create fetcher
-        fetcher = StockDataFetcher(symbols, cache_duration_minutes=CACHE_DURATION_MINUTES)
+        fetcher = StockDataFetcher(
+            symbols,
+            cache_duration_minutes=CACHE_DURATION_MINUTES,
+            crypto_overrides=CRYPTO_OVERRIDES,
+        )
 
         # Get current quotes
         quotes = fetcher.get_batch_quotes()
