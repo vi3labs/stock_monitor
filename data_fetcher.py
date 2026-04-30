@@ -124,9 +124,17 @@ class StockDataFetcher:
         if not targets:
             return {}
 
+        # Pace CoinGecko free-tier requests to avoid 429s. The fetcher itself
+        # retries on 429, but spacing the loop reduces how often we burn that
+        # budget. INTER_REQUEST_SLEEP set in coingecko_fetcher.py.
+        from coingecko_fetcher import INTER_REQUEST_SLEEP
+        import time
+
         cg = self._get_coingecko()
         results: Dict[str, dict] = {}
-        for sym in targets:
+        for i, sym in enumerate(targets):
+            if i > 0:
+                time.sleep(INTER_REQUEST_SLEEP)
             try:
                 data = cg.get_24h_range(sym)
                 if data:

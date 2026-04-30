@@ -24,6 +24,13 @@ BASE_URL = "https://api.coingecko.com/api/v3"
 COIN_LIST_TTL_HOURS = 24
 DEFAULT_TIMEOUT = 10
 
+# Free-tier CoinGecko allows ~5-15 req/min depending on time of day. Pace
+# crypto-batch loops so we don't burn through that budget on the watchlist.
+INTER_REQUEST_SLEEP = 1.5      # seconds between successive market_chart calls
+RATE_LIMIT_MAX_RETRIES = 2     # total attempts on 429 = 1 + retries
+RATE_LIMIT_BACKOFF = (5, 12)   # seconds between retries (additive, not exponential —
+                                # CoinGecko's 429 window is ~30s on free tier)
+
 
 class CoinGeckoFetcher:
     """
@@ -207,46 +214,77 @@ class CoinGeckoFetcher:
             logger.debug(f"CoinGecko could not resolve {symbol} for 24h range")
             return None
 
-        try:
-            params = {"vs_currency": "usd", "days": 1}
-            resp = requests.get(
-                f"{BASE_URL}/coins/{coin_id}/market_chart",
-                params=params,
-                timeout=DEFAULT_TIMEOUT,
+        # Retry on 429 (rate limit) — free tier randomly drops 1-of-N requests
+        # per ~30-second window. 1 base attempt + RATE_LIMIT_MAX_RETRIES retries.
+        params = {"vs_currency": "usd", "days": 1}
+        last_exc = None
+        for attempt in range(RATE_LIMIT_MAX_RETRIES + 1):
+            try:
+                resp = requests.get(
+                    f"{BASE_URL}/coins/{coin_id}/market_chart",
+                    params=params,
+                    timeout=DEFAULT_TIMEOUT,
+                )
+                if resp.status_code == 429 and attempt < RATE_LIMIT_MAX_RETRIES:
+                    backoff = RATE_LIMIT_BACKOFF[min(attempt, len(RATE_LIMIT_BACKOFF) - 1)]
+                    logger.info(
+                        f"CoinGecko 429 for {coin_id} (attempt {attempt + 1}); "
+                        f"backing off {backoff}s"
+                    )
+                    time.sleep(backoff)
+                    continue
+                resp.raise_for_status()
+                payload = resp.json()
+                break
+            except requests.HTTPError as e:
+                # Non-429 HTTP error: don't retry, surface and bail
+                logger.warning(f"CoinGecko 24h range fetch failed for {symbol} ({coin_id}): {e}")
+                return None
+            except Exception as e:
+                last_exc = e
+                if attempt >= RATE_LIMIT_MAX_RETRIES:
+                    logger.warning(
+                        f"CoinGecko 24h range fetch failed for {symbol} ({coin_id}) "
+                        f"after {attempt + 1} attempts: {e}"
+                    )
+                    return None
+                # Network blip — retry without backoff
+                logger.debug(f"CoinGecko 24h range transient error for {coin_id} attempt {attempt + 1}: {e}")
+        else:
+            # Loop exhausted without break (all 429s or all transient)
+            logger.warning(
+                f"CoinGecko 24h range fetch gave up on {symbol} ({coin_id}) "
+                f"after {RATE_LIMIT_MAX_RETRIES + 1} attempts: {last_exc}"
             )
-            resp.raise_for_status()
-            payload = resp.json()
-            prices = payload.get("prices", [])  # [[ms_ts, price], ...]
-
-            if len(prices) < 2:
-                logger.warning(f"CoinGecko 24h range for {coin_id} returned <2 points")
-                return None
-
-            closes = [p[1] for p in prices if p and len(p) >= 2 and p[1] is not None]
-            if not closes:
-                return None
-
-            current = closes[-1]
-            start = closes[0]
-            low_24h = min(closes)
-            high_24h = max(closes)
-            change_pct = ((current - start) / start * 100) if start else 0
-
-            result = {
-                "symbol": symbol,
-                "name": self._lookup_name(coin_id) or symbol,
-                "price": current,
-                "change_percent": change_pct,
-                "low_24h": low_24h,
-                "high_24h": high_24h,
-                "coin_id": coin_id,
-                "_source": "coingecko",
-            }
-            self._set_cache(cache_key, result)
-            return result
-        except Exception as e:
-            logger.warning(f"CoinGecko 24h range fetch failed for {symbol} ({coin_id}): {e}")
             return None
+
+        prices = payload.get("prices", [])  # [[ms_ts, price], ...]
+        if len(prices) < 2:
+            logger.warning(f"CoinGecko 24h range for {coin_id} returned <2 points")
+            return None
+
+        closes = [p[1] for p in prices if p and len(p) >= 2 and p[1] is not None]
+        if not closes:
+            return None
+
+        current = closes[-1]
+        start = closes[0]
+        low_24h = min(closes)
+        high_24h = max(closes)
+        change_pct = ((current - start) / start * 100) if start else 0
+
+        result = {
+            "symbol": symbol,
+            "name": self._lookup_name(coin_id) or symbol,
+            "price": current,
+            "change_percent": change_pct,
+            "low_24h": low_24h,
+            "high_24h": high_24h,
+            "coin_id": coin_id,
+            "_source": "coingecko",
+        }
+        self._set_cache(cache_key, result)
+        return result
 
     def get_weekly(self, symbol: str) -> Optional[dict]:
         """
