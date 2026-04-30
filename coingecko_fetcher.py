@@ -187,6 +187,67 @@ class CoinGeckoFetcher:
             logger.warning(f"CoinGecko quote fetch failed for {symbol} ({coin_id}): {e}")
             return None
 
+    def get_24h_range(self, symbol: str) -> Optional[dict]:
+        """
+        Fetch 24-hour price range (low/high) plus current price and 24h change.
+
+        Uses `/coins/{id}/market_chart?days=1` which returns ~5-minute granularity
+        on the free tier. Picks min/max from that series to get a true 24h range
+        (the `simple/price` endpoint doesn't expose low/high — only current).
+
+        Returns dict with: symbol, name, price, change_percent, low_24h, high_24h,
+        coin_id, _source. None if the symbol can't be resolved or the call fails.
+        """
+        cache_key = f"range24h_{symbol}"
+        if self._is_cache_valid(cache_key):
+            return self._get_cache(cache_key)
+
+        coin_id = self.resolve_coin_id(symbol)
+        if not coin_id:
+            logger.debug(f"CoinGecko could not resolve {symbol} for 24h range")
+            return None
+
+        try:
+            params = {"vs_currency": "usd", "days": 1}
+            resp = requests.get(
+                f"{BASE_URL}/coins/{coin_id}/market_chart",
+                params=params,
+                timeout=DEFAULT_TIMEOUT,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+            prices = payload.get("prices", [])  # [[ms_ts, price], ...]
+
+            if len(prices) < 2:
+                logger.warning(f"CoinGecko 24h range for {coin_id} returned <2 points")
+                return None
+
+            closes = [p[1] for p in prices if p and len(p) >= 2 and p[1] is not None]
+            if not closes:
+                return None
+
+            current = closes[-1]
+            start = closes[0]
+            low_24h = min(closes)
+            high_24h = max(closes)
+            change_pct = ((current - start) / start * 100) if start else 0
+
+            result = {
+                "symbol": symbol,
+                "name": self._lookup_name(coin_id) or symbol,
+                "price": current,
+                "change_percent": change_pct,
+                "low_24h": low_24h,
+                "high_24h": high_24h,
+                "coin_id": coin_id,
+                "_source": "coingecko",
+            }
+            self._set_cache(cache_key, result)
+            return result
+        except Exception as e:
+            logger.warning(f"CoinGecko 24h range fetch failed for {symbol} ({coin_id}): {e}")
+            return None
+
     def get_weekly(self, symbol: str) -> Optional[dict]:
         """
         Fetch 7-day price history in get_weekly_performance() shape.
@@ -260,6 +321,7 @@ if __name__ == "__main__":
     for sym in ("TIG-USD", "BTC-USD"):
         quote = fetcher.get_quote(sym)
         weekly = fetcher.get_weekly(sym)
+        range_24h = fetcher.get_24h_range(sym)
         print(f"\n=== {sym} ===")
         if quote:
             print(f"  price:  ${quote['price']:.4f}")
@@ -267,6 +329,10 @@ if __name__ == "__main__":
             print(f"  name:   {quote['name']}")
         else:
             print("  quote:  (no data)")
+        if range_24h:
+            print(f"  range:  ${range_24h['low_24h']:.4f} - ${range_24h['high_24h']:.4f}")
+        else:
+            print("  range:  (no data)")
         if weekly:
             print(f"  week:   {weekly['week_change_percent']:+.2f}% over {len(weekly['daily_closes'])} days")
         else:

@@ -102,6 +102,41 @@ class StockDataFetcher:
                 results[sym] = quote
                 logger.info(f"CoinGecko fallback resolved {sym} → ${quote['price']:.4f}")
 
+    def get_crypto_24h_data(self, symbols: Optional[List[str]] = None) -> Dict[str, dict]:
+        """
+        Fetch 24-hour data (price, range, % change) for crypto tickers.
+
+        Uses CoinGecko's `/coins/{id}/market_chart?days=1` for true 24h low/high.
+        yfinance's `dayHigh`/`dayLow` reset at midnight UTC for crypto (same as
+        equities) and don't give a rolling 24h window — CoinGecko does.
+
+        Args:
+            symbols: Crypto symbols to fetch (e.g. ['BTC-USD']). If None,
+                     uses self.crypto_symbols. Symbols not ending in `-USD`
+                     are skipped silently.
+
+        Returns:
+            Dict keyed by symbol. Each value: {symbol, name, price,
+            change_percent, low_24h, high_24h, coin_id, _source}.
+            Symbols that fail to resolve or fetch are omitted from the result.
+        """
+        targets = [s for s in (symbols or self.crypto_symbols) if s.endswith("-USD")]
+        if not targets:
+            return {}
+
+        cg = self._get_coingecko()
+        results: Dict[str, dict] = {}
+        for sym in targets:
+            try:
+                data = cg.get_24h_range(sym)
+                if data:
+                    results[sym] = data
+                else:
+                    logger.info(f"No 24h crypto data for {sym}")
+            except Exception as e:
+                logger.warning(f"Crypto 24h fetch failed for {sym}: {e}")
+        return results
+
     def _crypto_fallback_weekly(self, results: Dict[str, dict]) -> None:
         """Fill in missing crypto weekly performance from CoinGecko, in place."""
         missing = [

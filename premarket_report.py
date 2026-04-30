@@ -20,11 +20,51 @@ from data_fetcher import StockDataFetcher, FuturesDataFetcher, TrendsFetcher
 from news_fetcher import NewsFetcher
 from email_generator import JinjaEmailGenerator as EmailGenerator
 from email_sender import EmailSenderFactory
-from notion_watchlist import get_watchlist
+from notion_watchlist import get_watchlist, get_watchlist_with_metadata
 from network_check import wait_for_network
 
 setup_logging()
 logger = logging.getLogger(__name__)
+
+
+def _resolve_crypto_symbols(symbols):
+    """
+    Pick the crypto subset of the watchlist for the email's Crypto section.
+
+    Strategy:
+    1. Ask Notion for stocks with sector="Crypto" — that's the explicit signal.
+    2. Filter to symbols that are direct crypto (`*-USD`); skip equity proxies
+       (COIN, MSTR, IBIT) — those belong in the Pre-Market Movers section.
+    3. Intersect with the active watchlist so we don't query archived tickers.
+    4. If Notion metadata is unavailable, fall back to any `*-USD` ticker on
+       the active watchlist.
+
+    Returns a list of crypto ticker symbols (e.g. ['BTC-USD', 'ETH-USD']).
+    """
+    watchlist_set = set(symbols)
+    fallback = sorted(s for s in watchlist_set if s.endswith('-USD'))
+
+    try:
+        meta = get_watchlist_with_metadata()
+    except Exception as e:
+        logger.warning(f"Could not get watchlist metadata for crypto filter: {e}")
+        return fallback
+
+    if not meta:
+        return fallback
+
+    crypto_tickers = [
+        s['ticker'] for s in meta
+        if (s.get('sector') or '').strip().lower() == 'crypto'
+        and s['ticker'].endswith('-USD')
+        and s['ticker'] in watchlist_set
+    ]
+
+    # If Notion has no Crypto-sector tagging yet, gracefully fall back to *-USD detection
+    if not crypto_tickers:
+        return fallback
+
+    return sorted(crypto_tickers)
 
 
 def _send_error_alert(config: dict, message: str):
@@ -79,7 +119,8 @@ def main(force: bool = False):
         logger.info(f"Tracking {len(symbols)} symbols")
         
         # Initialize components
-        stock_fetcher = StockDataFetcher(symbols)
+        crypto_overrides = config.get('crypto_overrides') or {}
+        stock_fetcher = StockDataFetcher(symbols, crypto_overrides=crypto_overrides)
         futures_fetcher = FuturesDataFetcher()
         news_fetcher = NewsFetcher(max_news_per_stock=config['report'].get('news_per_stock', 3))
         email_generator = EmailGenerator()
@@ -102,6 +143,20 @@ def main(force: bool = False):
 
         if len(quotes) < len(symbols) * 0.5:
             logger.warning(f"Data quality issue: Only got quotes for {len(quotes)}/{len(symbols)} symbols")
+
+        # Fetch crypto 24h data (Notion "Crypto" sector + any *-USD on the watchlist)
+        logger.info("Fetching crypto 24h data...")
+        crypto_data = {}
+        try:
+            crypto_symbols = _resolve_crypto_symbols(symbols)
+            if crypto_symbols:
+                crypto_data = stock_fetcher.get_crypto_24h_data(crypto_symbols)
+                logger.info(f"Got 24h data for {len(crypto_data)}/{len(crypto_symbols)} crypto tickers")
+            else:
+                logger.info("No crypto tickers in watchlist; skipping crypto section")
+        except Exception as e:
+            logger.warning(f"Could not fetch crypto 24h data: {e}")
+            # Continue without crypto - graceful degradation
 
         # Fetch earnings calendar
         logger.info("Fetching earnings calendar...")
@@ -162,6 +217,7 @@ def main(force: bool = False):
             market_news=market_news,
             world_news=world_news,
             trends_data=trends_data,
+            crypto_data=crypto_data,
             dashboard_url='http://localhost:3006',
         )
         

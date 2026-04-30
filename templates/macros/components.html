@@ -47,6 +47,39 @@
         </tr>
 {% endmacro %}
 
+{% macro crypto_row(symbol, name, price, low_24h, high_24h, change_pct) %}
+{%- set change_str = "+%.2f%%"|format(change_pct) if change_pct > 0 else "%.2f%%"|format(change_pct) if change_pct < 0 else "0.00%" -%}
+{%- set color = colors.green if change_pct > 0 else (colors.red if change_pct < 0 else colors.neutral) -%}
+{%- set color_class = 'text-green' if change_pct > 0 else ('text-red' if change_pct < 0 else 'text-neutral') -%}
+{%- set bg_class = 'bg-green-subtle' if change_pct > 0 else ('bg-red-subtle' if change_pct < 0 else '') -%}
+{%- set name_truncated = name[:25] ~ "..." if name|length > 25 else name -%}
+{%- set range_str = (low_24h|format_price) ~ " - " ~ (high_24h|format_price) -%}
+{%- if high_24h > low_24h -%}
+  {%- set raw_pos = ((price - low_24h) / (high_24h - low_24h) * 100)|round(0)|int -%}
+  {%- set pos_pct = [[raw_pos, 0]|max, 100]|min -%}
+{%- else -%}
+  {%- set pos_pct = 50 -%}
+{%- endif -%}
+        <tr>
+            <td class="m-pad-h" style="padding: 0 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="border-b" style="border-bottom: 1px solid {{ colors.border }};">
+                    <tr>
+                        <td style="padding: 12px 0;">
+                            <a href="https://www.tradingview.com/symbols/{{ symbol }}/" style="color: {{ colors.text_primary }}; font-size: 15px; font-weight: 600; text-decoration: none;">{{ symbol }}</a>
+                            <div class="text-secondary" style="color: {{ colors.text_secondary }}; font-size: 12px;">{{ name_truncated }}</div>
+                            <div class="text-secondary" style="color: {{ colors.text_secondary }}; font-size: 11px; margin-top: 4px;">24h: {{ range_str }}</div>
+                        </td>
+                        <td style="padding: 12px 0; text-align: right;">
+                            <div class="text-primary" style="color: {{ colors.text_primary }}; font-size: 15px;">{{ price|format_price }}</div>
+                            <div class="{{ color_class }} {{ bg_class }}" style="display: inline-block; padding: 2px 8px; border-radius: 4px; background-color: {{ color }}20; color: {{ color }}; font-size: 13px; font-weight: 600;">{{ change_str }}</div>
+                            <div class="text-secondary" style="color: {{ colors.text_secondary }}; font-size: 10px; margin-top: 2px;">{{ pos_pct }}% of range</div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+{% endmacro %}
+
 {% macro index_row(items) %}
 {%- set cell_width = (100 / items|length)|int if items else 25 -%}
         <tr>

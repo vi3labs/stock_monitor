@@ -767,6 +767,65 @@ class EmailGenerator:
         </tr>
 """
 
+    def _crypto_row(self, symbol: str, name: str, price: float,
+                     low_24h: float, high_24h: float, change_pct: float) -> str:
+        """Render a single crypto row with 24h range bar, price, and % change."""
+        change_str, color = self._format_change(change_pct)
+        color_class = 'text-green' if change_pct > 0 else ('text-red' if change_pct < 0 else 'text-neutral')
+        bg_class = 'bg-green-subtle' if change_pct > 0 else ('bg-red-subtle' if change_pct < 0 else '')
+        name_truncated = name[:self.MAX_NAME_LENGTH] + "..." if len(name) > self.MAX_NAME_LENGTH else name
+
+        # Compute the current price's position within the 24h range, clamped 0-100.
+        if high_24h > low_24h:
+            pos_pct = max(0, min(100, (price - low_24h) / (high_24h - low_24h) * 100))
+        else:
+            pos_pct = 50  # Flat range — center the marker
+
+        range_str = f"{self._format_price(low_24h)} - {self._format_price(high_24h)}"
+
+        return f"""
+        <tr>
+            <td style="padding: 0 20px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="border-b" style="border-bottom: 1px solid {self.c['border']};">
+                    <tr>
+                        <td style="padding: 12px 0;">
+                            <div class="text-primary" style="color: {self.c['text_primary']}; font-size: 15px; font-weight: 600;">{symbol}</div>
+                            <div class="text-secondary" style="color: {self.c['text_secondary']}; font-size: 12px;">{name_truncated}</div>
+                            <div class="text-secondary" style="color: {self.c['text_secondary']}; font-size: 11px; margin-top: 4px;">24h: {range_str}</div>
+                        </td>
+                        <td style="padding: 12px 0; text-align: right;">
+                            <div class="text-primary" style="color: {self.c['text_primary']}; font-size: 15px;">{self._format_price(price)}</div>
+                            <div class="{color_class} {bg_class}" style="display: inline-block; padding: 2px 8px; border-radius: 4px; background-color: {color}20; color: {color}; font-size: 13px; font-weight: 600;">{change_str}</div>
+                            <div class="text-secondary" style="color: {self.c['text_secondary']}; font-size: 10px; margin-top: 2px;">{pos_pct:.0f}% of range</div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+"""
+
+    def _crypto_section(self, crypto_data: Dict[str, dict]) -> str:
+        """Render the Crypto section showing per-ticker 24h price range + change."""
+        if not crypto_data:
+            return ""
+        # Sort by absolute % change so the noisiest names land first
+        sorted_crypto = sorted(
+            crypto_data.values(),
+            key=lambda d: abs(d.get('change_percent', 0) or 0),
+            reverse=True,
+        )
+        out = ""
+        for d in sorted_crypto:
+            out += self._crypto_row(
+                d.get('symbol', ''),
+                d.get('name', d.get('symbol', '')),
+                d.get('price', 0) or 0,
+                d.get('low_24h', 0) or 0,
+                d.get('high_24h', 0) or 0,
+                d.get('change_percent', 0) or 0,
+            )
+        return out
+
     def generate_premarket_report(self,
                                    futures: Dict[str, dict],
                                    premarket_data: Dict[str, dict],
@@ -778,6 +837,7 @@ class EmailGenerator:
                                    world_news: List[dict] = None,
                                    trends_data: Dict[str, dict] = None,
                                    signal_digest: str = None,
+                                   crypto_data: Dict[str, dict] = None,
                                    dashboard_url: str = None) -> str:
         """Generate pre-market morning report."""
 
@@ -834,6 +894,12 @@ class EmailGenerator:
                     data.get('pre_market_price', 0),
                     data.get('pre_market_change_percent', 0)
                 )
+            content += self._spacer(10)
+
+        # Crypto (24h range, separate from equities)
+        if crypto_data:
+            content += self._section_title("₿ Crypto (24h)")
+            content += self._crypto_section(crypto_data)
             content += self._spacer(10)
 
         # Sector performance (using previous close data from quotes)
@@ -1276,6 +1342,7 @@ class JinjaEmailGenerator(EmailGenerator):
                                    world_news: List[dict] = None,
                                    trends_data: Dict[str, dict] = None,
                                    signal_digest: str = None,
+                                   crypto_data: Dict[str, dict] = None,
                                    dashboard_url: str = None) -> str:
         """Generate pre-market morning report using Jinja2 template."""
         now = datetime.now()
@@ -1295,6 +1362,13 @@ class JinjaEmailGenerator(EmailGenerator):
         signal_digest_html = self._signal_digest_section(signal_digest) if signal_digest else ""
         trends_html = self._trends_section(trends_data) if trends_data else ""
 
+        # Sort crypto by absolute 24h % change (most volatile first)
+        sorted_crypto = sorted(
+            (crypto_data or {}).values(),
+            key=lambda d: abs(d.get('change_percent', 0) or 0),
+            reverse=True,
+        )
+
         template = self.env.get_template('premarket.html')
         return template.render(
             title="Pre-Market Briefing",
@@ -1307,6 +1381,7 @@ class JinjaEmailGenerator(EmailGenerator):
             futures_list=futures_list,
             sorted_premarket=sorted_premarket,
             sorted_sectors=sorted_sectors,
+            crypto_list=sorted_crypto,
             earnings=earnings or [],
             dividends=dividends or [],
             news_items=self._flatten_news(news) if news else [],
