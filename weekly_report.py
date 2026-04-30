@@ -188,8 +188,15 @@ def generate_comparison_chart(weekly_data: dict, output_path: str) -> bool:
         return False
 
 
-def main():
-    """Generate and send weekly report."""
+def main(force: bool = False, dry_run: bool = False):
+    """Generate and send weekly report.
+
+    Args:
+        force: Reserved for symmetry with premarket/postmarket. Weekly doesn't
+               currently gate on market day, so this is a no-op for now.
+        dry_run: Render the email locally to reports/weekly_<ts>_dryrun.html
+                 but do NOT send. SMTP is skipped entirely.
+    """
     logger.info("=" * 50)
     logger.info("Starting Weekly Summary Report Generation")
     logger.info("=" * 50)
@@ -215,7 +222,8 @@ def main():
         logger.info(f"Tracking {len(symbols)} symbols")
         
         # Initialize components
-        stock_fetcher = StockDataFetcher(symbols)
+        crypto_overrides = config.get('crypto_overrides') or {}
+        stock_fetcher = StockDataFetcher(symbols, crypto_overrides=crypto_overrides)
         email_generator = EmailGenerator()
         email_sender = EmailSenderFactory.from_config(config)
         
@@ -266,8 +274,9 @@ def main():
             streaks=streaks,
         )
         
-        # Save a local copy
-        debug_path = f'reports/weekly_{datetime.now().strftime("%Y%m%d_%H%M")}.html'
+        # Save a local copy (suffix _dryrun makes the artifact obvious)
+        suffix = "_dryrun" if dry_run else ""
+        debug_path = f'reports/weekly_{datetime.now().strftime("%Y%m%d_%H%M")}{suffix}.html'
         with open(debug_path, 'w') as f:
             f.write(html_content)
         logger.info(f"Saved debug copy to {debug_path}")
@@ -350,33 +359,36 @@ def main():
         
         logger.info("=" * 40 + "\n")
         
-        # Send email
-        recipient = email_config.get('recipient_email', email_config.get('sender_email'))
-        
-        if recipient and email_sender.sender_email and email_sender.sender_password:
-            logger.info(f"Sending email to {recipient}...")
-            
-            # Include chart as attachment if it exists
-            attachments = []
-            if os.path.exists(chart_path):
-                attachments.append(chart_path)
-            if os.path.exists(comparison_chart_path):
-                attachments.append(comparison_chart_path)
-            
-            success = email_sender.send_weekly_report(
-                recipient, 
-                html_content, 
-                chart_path if os.path.exists(chart_path) else None
-            )
-            
-            if success:
-                logger.info("✓ Weekly report sent successfully!")
-            else:
-                logger.error("✗ Failed to send email")
+        # Send email (skipped entirely in dry-run mode)
+        if dry_run:
+            logger.info(f"DRY RUN — preview at {debug_path}, not sending email")
         else:
-            logger.warning("Email not configured. Report saved locally only.")
-            logger.info(f"View the report at: {debug_path}")
-        
+            recipient = email_config.get('recipient_email', email_config.get('sender_email'))
+
+            if recipient and email_sender.sender_email and email_sender.sender_password:
+                logger.info(f"Sending email to {recipient}...")
+
+                # Include chart as attachment if it exists
+                attachments = []
+                if os.path.exists(chart_path):
+                    attachments.append(chart_path)
+                if os.path.exists(comparison_chart_path):
+                    attachments.append(comparison_chart_path)
+
+                success = email_sender.send_weekly_report(
+                    recipient,
+                    html_content,
+                    chart_path if os.path.exists(chart_path) else None
+                )
+
+                if success:
+                    logger.info("✓ Weekly report sent successfully!")
+                else:
+                    logger.error("✗ Failed to send email")
+            else:
+                logger.warning("Email not configured. Report saved locally only.")
+                logger.info(f"View the report at: {debug_path}")
+
         logger.info("Weekly report generation complete")
         
     except Exception as e:
@@ -385,4 +397,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description='Weekly Summary Report Generator')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Render preview to reports/weekly_<ts>_dryrun.html, do NOT send email')
+    args = parser.parse_args()
+    main(dry_run=args.dry_run)

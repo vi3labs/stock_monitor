@@ -36,6 +36,10 @@ data/*.db
 data/*.db-wal
 data/*.db-shm
 
+# Runtime caches (CoinGecko 24h stale-OK fallback, etc.)
+data/coingecko_24h_cache.json
+data/coingecko_24h_cache.json.tmp
+
 # Temporary
 *.tmp
 *.bak

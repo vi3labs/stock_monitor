@@ -10,7 +10,9 @@ the rest. The `crypto_overrides` map in `config.yaml` resolves
 ambiguous tickers to a specific CoinGecko coin_id.
 """
 
+import json
 import logging
+import os
 import threading
 import time
 from datetime import datetime
@@ -23,6 +25,28 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://api.coingecko.com/api/v3"
 COIN_LIST_TTL_HOURS = 24
 DEFAULT_TIMEOUT = 10
+
+# Free-tier CoinGecko allows ~5-15 req/min depending on time of day. Pace
+# crypto-batch loops so we don't burn through that budget on the watchlist.
+INTER_REQUEST_SLEEP = 1.5            # seconds between successive market_chart calls
+RATE_LIMIT_MAX_RETRIES = 3           # total attempts on 429 = 1 + retries
+RATE_LIMIT_BACKOFF = (5, 12, 25)     # seconds between retries (additive, not exponential —
+                                      # CoinGecko's 429 window is ~30s on free tier; the
+                                      # third attempt at +25s should land in a fresh window
+                                      # even when the prior pair both 429'd)
+
+# Persistent cache for `get_24h_range` results. When a live fetch fails after
+# all retries (e.g. an extra-stubborn 429 burst), the renderer falls back to
+# the most recent cached value within DISK_CACHE_STALE_OK_SECONDS. Better to
+# show yesterday's range with a slightly off price than to silently drop the
+# ticker from the email — Tom flagged TIG-USD missing exactly this way on
+# 2026-04-30 when CoinGecko 429'd the-innovation-game three times in a row.
+DEFAULT_DISK_CACHE_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "data",
+    "coingecko_24h_cache.json",
+)
+DISK_CACHE_STALE_OK_SECONDS = 25 * 60 * 60  # 25h — survives a full day-skip
 
 
 class CoinGeckoFetcher:
@@ -37,6 +61,7 @@ class CoinGeckoFetcher:
         self,
         overrides: Optional[Dict[str, str]] = None,
         cache_duration_minutes: int = 5,
+        disk_cache_path: Optional[str] = None,
     ):
         self._overrides = {k.upper(): v for k, v in (overrides or {}).items()}
         self.cache_duration = cache_duration_minutes
@@ -48,6 +73,14 @@ class CoinGeckoFetcher:
         self._coin_list: Optional[List[dict]] = None
         self._coin_list_time: Optional[datetime] = None
         self._coin_list_lock = threading.Lock()
+
+        # Disk cache for stale-OK 24h fallback. Pass `disk_cache_path=""` to
+        # disable (useful in tests). None falls back to the module default.
+        if disk_cache_path is None:
+            self._disk_cache_path: Optional[str] = DEFAULT_DISK_CACHE_PATH
+        else:
+            self._disk_cache_path = disk_cache_path or None
+        self._disk_cache_lock = threading.Lock()
 
     def _is_cache_valid(self, key: str) -> bool:
         with self._cache_lock:
@@ -64,6 +97,72 @@ class CoinGeckoFetcher:
     def _get_cache(self, key: str) -> Optional[dict]:
         with self._cache_lock:
             return self._cache.get(key)
+
+    # ── Disk cache (stale-OK fallback for 24h range fetches) ──
+
+    def _read_disk_cache(self) -> Dict[str, dict]:
+        """Load the on-disk cache map. Returns {} on any error so callers
+        can treat the disk cache as best-effort."""
+        if not self._disk_cache_path:
+            return {}
+        with self._disk_cache_lock:
+            try:
+                with open(self._disk_cache_path, "r") as f:
+                    raw = json.load(f)
+                if isinstance(raw, dict):
+                    return raw
+                return {}
+            except (FileNotFoundError, ValueError, OSError):
+                return {}
+
+    def _write_disk_cache_entry(self, symbol: str, data: dict) -> None:
+        """Merge a single symbol's 24h range into the on-disk cache. Best-effort
+        — disk write failures are logged at debug and never raised, since the
+        in-memory caller already has the fresh value."""
+        if not self._disk_cache_path:
+            return
+        with self._disk_cache_lock:
+            try:
+                existing: Dict[str, dict] = {}
+                try:
+                    with open(self._disk_cache_path, "r") as f:
+                        loaded = json.load(f)
+                    if isinstance(loaded, dict):
+                        existing = loaded
+                except (FileNotFoundError, ValueError, OSError):
+                    existing = {}
+
+                existing[symbol] = {
+                    "data": data,
+                    "saved_at": datetime.now().isoformat(timespec="seconds"),
+                }
+
+                os.makedirs(os.path.dirname(self._disk_cache_path), exist_ok=True)
+                tmp_path = f"{self._disk_cache_path}.tmp"
+                with open(tmp_path, "w") as f:
+                    json.dump(existing, f)
+                os.replace(tmp_path, self._disk_cache_path)
+            except OSError as e:
+                logger.debug(f"CoinGecko disk-cache write failed for {symbol}: {e}")
+
+    def _read_disk_cache_entry(self, symbol: str) -> Optional[dict]:
+        """Return the cached `data` dict for `symbol` if it exists and is
+        younger than DISK_CACHE_STALE_OK_SECONDS, else None."""
+        cache = self._read_disk_cache()
+        entry = cache.get(symbol)
+        if not entry or not isinstance(entry, dict):
+            return None
+        saved_at = entry.get("saved_at")
+        data = entry.get("data")
+        if not saved_at or not isinstance(data, dict):
+            return None
+        try:
+            age = (datetime.now() - datetime.fromisoformat(saved_at)).total_seconds()
+        except ValueError:
+            return None
+        if age > DISK_CACHE_STALE_OK_SECONDS:
+            return None
+        return data
 
     def _get_coin_list(self) -> List[dict]:
         """Fetch and cache CoinGecko's full coin list (id/symbol/name)."""
@@ -207,46 +306,99 @@ class CoinGeckoFetcher:
             logger.debug(f"CoinGecko could not resolve {symbol} for 24h range")
             return None
 
-        try:
-            params = {"vs_currency": "usd", "days": 1}
-            resp = requests.get(
-                f"{BASE_URL}/coins/{coin_id}/market_chart",
-                params=params,
-                timeout=DEFAULT_TIMEOUT,
+        # Retry on 429 (rate limit) — free tier randomly drops 1-of-N requests
+        # per ~30-second window. 1 base attempt + RATE_LIMIT_MAX_RETRIES retries.
+        params = {"vs_currency": "usd", "days": 1}
+        payload: Optional[dict] = None
+        last_exc = None
+        for attempt in range(RATE_LIMIT_MAX_RETRIES + 1):
+            try:
+                resp = requests.get(
+                    f"{BASE_URL}/coins/{coin_id}/market_chart",
+                    params=params,
+                    timeout=DEFAULT_TIMEOUT,
+                )
+                if resp.status_code == 429 and attempt < RATE_LIMIT_MAX_RETRIES:
+                    backoff = RATE_LIMIT_BACKOFF[min(attempt, len(RATE_LIMIT_BACKOFF) - 1)]
+                    logger.info(
+                        f"CoinGecko 429 for {coin_id} (attempt {attempt + 1}); "
+                        f"backing off {backoff}s"
+                    )
+                    time.sleep(backoff)
+                    continue
+                resp.raise_for_status()
+                payload = resp.json()
+                break
+            except requests.HTTPError as e:
+                # Non-429 HTTP error: don't retry, surface and bail
+                logger.warning(f"CoinGecko 24h range fetch failed for {symbol} ({coin_id}): {e}")
+                return self._stale_24h_fallback(symbol, coin_id, reason=str(e))
+            except Exception as e:
+                last_exc = e
+                if attempt >= RATE_LIMIT_MAX_RETRIES:
+                    logger.warning(
+                        f"CoinGecko 24h range fetch failed for {symbol} ({coin_id}) "
+                        f"after {attempt + 1} attempts: {e}"
+                    )
+                    return self._stale_24h_fallback(symbol, coin_id, reason=str(e))
+                # Network blip — retry without backoff
+                logger.debug(f"CoinGecko 24h range transient error for {coin_id} attempt {attempt + 1}: {e}")
+
+        if payload is None:
+            # Loop exhausted without a successful response (all 429s).
+            logger.warning(
+                f"CoinGecko 24h range fetch gave up on {symbol} ({coin_id}) "
+                f"after {RATE_LIMIT_MAX_RETRIES + 1} attempts: {last_exc}"
             )
-            resp.raise_for_status()
-            payload = resp.json()
-            prices = payload.get("prices", [])  # [[ms_ts, price], ...]
+            return self._stale_24h_fallback(symbol, coin_id, reason="all attempts 429")
 
-            if len(prices) < 2:
-                logger.warning(f"CoinGecko 24h range for {coin_id} returned <2 points")
-                return None
+        prices = payload.get("prices", [])  # [[ms_ts, price], ...]
+        if len(prices) < 2:
+            logger.warning(f"CoinGecko 24h range for {coin_id} returned <2 points")
+            return self._stale_24h_fallback(symbol, coin_id, reason="empty payload")
 
-            closes = [p[1] for p in prices if p and len(p) >= 2 and p[1] is not None]
-            if not closes:
-                return None
+        closes = [p[1] for p in prices if p and len(p) >= 2 and p[1] is not None]
+        if not closes:
+            return self._stale_24h_fallback(symbol, coin_id, reason="no closes")
 
-            current = closes[-1]
-            start = closes[0]
-            low_24h = min(closes)
-            high_24h = max(closes)
-            change_pct = ((current - start) / start * 100) if start else 0
+        current = closes[-1]
+        start = closes[0]
+        low_24h = min(closes)
+        high_24h = max(closes)
+        change_pct = ((current - start) / start * 100) if start else 0
 
-            result = {
-                "symbol": symbol,
-                "name": self._lookup_name(coin_id) or symbol,
-                "price": current,
-                "change_percent": change_pct,
-                "low_24h": low_24h,
-                "high_24h": high_24h,
-                "coin_id": coin_id,
-                "_source": "coingecko",
-            }
-            self._set_cache(cache_key, result)
-            return result
-        except Exception as e:
-            logger.warning(f"CoinGecko 24h range fetch failed for {symbol} ({coin_id}): {e}")
+        result = {
+            "symbol": symbol,
+            "name": self._lookup_name(coin_id) or symbol,
+            "price": current,
+            "change_percent": change_pct,
+            "low_24h": low_24h,
+            "high_24h": high_24h,
+            "coin_id": coin_id,
+            "_source": "coingecko",
+        }
+        self._set_cache(cache_key, result)
+        # Persist for the stale-OK fallback so tomorrow's 429 burst doesn't
+        # drop this ticker from the email.
+        self._write_disk_cache_entry(symbol, result)
+        return result
+
+    def _stale_24h_fallback(
+        self, symbol: str, coin_id: str, *, reason: str
+    ) -> Optional[dict]:
+        """Return the most recent on-disk 24h range entry for `symbol` if
+        it's within DISK_CACHE_STALE_OK_SECONDS, otherwise None. Tags the
+        result with `_stale=True` so callers / templates can flag it if
+        they care; existing renderers ignore the field, which is fine — a
+        stale row beats a missing row."""
+        cached = self._read_disk_cache_entry(symbol)
+        if not cached:
             return None
+        logger.warning(
+            f"CoinGecko 24h range using stale disk cache for {symbol} "
+            f"({coin_id}); reason: {reason}"
+        )
+        return {**cached, "_stale": True}
 
     def get_weekly(self, symbol: str) -> Optional[dict]:
         """
