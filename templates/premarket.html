@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros/components.html" import header, section_title, stock_row, index_row, headline_item, news_item, calendar_item, sector_bars, spacer, footer %}
+{% from "macros/components.html" import header, section_title, stock_row, crypto_row, index_row, headline_item, news_item, calendar_item, sector_bars, spacer, footer %}
 
 {% block content %}
 {{ header(title, subtitle, dashboard_url) }}
@@ -41,6 +41,14 @@
 {{ section_title("Pre-Market Movers") }}
 {% for symbol, data in sorted_premarket[:12] %}
 {{ stock_row(symbol, data.get('name', ''), data.get('pre_market_price', 0), data.get('pre_market_change_percent', 0)) }}
+{% endfor %}
+{{ spacer(10) }}
+{% endif %}
+
+{% if crypto_list %}
+{{ section_title("Crypto (24h)") }}
+{% for c in crypto_list %}
+{{ crypto_row(c.get('symbol', ''), c.get('name', c.get('symbol', '')), c.get('price', 0) or 0, c.get('low_24h', 0) or 0, c.get('high_24h', 0) or 0, c.get('change_percent', 0) or 0) }}
 {% endfor %}
 {{ spacer(10) }}
 {% endif %}
