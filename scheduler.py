@@ -5,11 +5,15 @@ Stock Monitor Scheduler
 Runs the stock monitoring reports on schedule.
 
 Usage:
-    python scheduler.py          # Run scheduler daemon
-    python scheduler.py --test   # Run all reports once immediately
-    python scheduler.py --premarket   # Run premarket report only
-    python scheduler.py --postmarket  # Run postmarket report only
-    python scheduler.py --weekly      # Run weekly report only
+    python scheduler.py                       # Run scheduler daemon
+    python scheduler.py --test                # Run all reports once immediately
+    python scheduler.py --premarket           # Run premarket report only
+    python scheduler.py --postmarket          # Run postmarket report only
+    python scheduler.py --weekly              # Run weekly report only
+
+Dry-run (renders email to reports/<type>_<timestamp>_dryrun.html, no SMTP):
+    python scheduler.py --premarket --force --dry-run
+    python scheduler.py --test --dry-run
 """
 
 import schedule
@@ -27,32 +31,32 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
-def run_premarket():
+def run_premarket(dry_run: bool = False):
     """Run pre-market report."""
-    logger.info("Running pre-market report...")
+    logger.info("Running pre-market report%s...", " (dry-run)" if dry_run else "")
     try:
         from premarket_report import main as premarket_main
-        premarket_main()
+        premarket_main(dry_run=dry_run)
     except Exception as e:
         logger.exception(f"Error in pre-market report: {e}")
 
 
-def run_postmarket():
+def run_postmarket(dry_run: bool = False):
     """Run post-market report."""
-    logger.info("Running post-market report...")
+    logger.info("Running post-market report%s...", " (dry-run)" if dry_run else "")
     try:
         from postmarket_report import main as postmarket_main
-        postmarket_main()
+        postmarket_main(dry_run=dry_run)
     except Exception as e:
         logger.exception(f"Error in post-market report: {e}")
 
 
-def run_weekly():
+def run_weekly(dry_run: bool = False):
     """Run weekly report."""
-    logger.info("Running weekly report...")
+    logger.info("Running weekly report%s...", " (dry-run)" if dry_run else "")
     try:
         from weekly_report import main as weekly_main
-        weekly_main()
+        weekly_main(dry_run=dry_run)
     except Exception as e:
         logger.exception(f"Error in weekly report: {e}")
 
@@ -162,26 +166,31 @@ def main():
     parser.add_argument('--postmarket', action='store_true', help='Run post-market report only')
     parser.add_argument('--weekly', action='store_true', help='Run weekly report only')
     parser.add_argument('--force', action='store_true', help='Run even on non-trading days')
+    parser.add_argument(
+        '--dry-run', action='store_true',
+        help='Render the email locally to reports/<type>_<timestamp>_dryrun.html but do NOT send. '
+             'Skips SMTP entirely. Use this for any local testing.',
+    )
 
     args = parser.parse_args()
 
     if args.test:
-        logger.info("Running all reports in test mode...")
-        run_premarket()
-        run_postmarket()
-        run_weekly()
+        logger.info("Running all reports in test mode%s...", " (dry-run)" if args.dry_run else "")
+        run_premarket(dry_run=args.dry_run)
+        run_postmarket(dry_run=args.dry_run)
+        run_weekly(dry_run=args.dry_run)
     elif args.premarket:
         if not args.force and not is_market_day():
             logger.info("Skipping pre-market report (not a trading day). Use --force to override.")
             return
-        run_premarket()
+        run_premarket(dry_run=args.dry_run)
     elif args.postmarket:
         if not args.force and not is_market_day():
             logger.info("Skipping post-market report (not a trading day). Use --force to override.")
             return
-        run_postmarket()
+        run_postmarket(dry_run=args.dry_run)
     elif args.weekly:
-        run_weekly()
+        run_weekly(dry_run=args.dry_run)
     else:
         run_scheduler()
 

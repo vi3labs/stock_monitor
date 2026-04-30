@@ -68,3 +68,32 @@ class TestIsMarketDay:
             from scheduler import is_market_day
             result = is_market_day()
             assert result is False
+
+
+class TestDryRunFlagPropagation:
+    """Verify --dry-run flows through scheduler dispatchers to each report's main()."""
+
+    def test_run_premarket_passes_dry_run(self):
+        with patch("premarket_report.main") as mock_main:
+            from scheduler import run_premarket
+            run_premarket(dry_run=True)
+            mock_main.assert_called_once_with(dry_run=True)
+
+    def test_run_postmarket_passes_dry_run(self):
+        with patch("postmarket_report.main") as mock_main:
+            from scheduler import run_postmarket
+            run_postmarket(dry_run=True)
+            mock_main.assert_called_once_with(dry_run=True)
+
+    def test_run_weekly_passes_dry_run(self):
+        with patch("weekly_report.main") as mock_main:
+            from scheduler import run_weekly
+            run_weekly(dry_run=True)
+            mock_main.assert_called_once_with(dry_run=True)
+
+    def test_dry_run_default_false(self):
+        """Calling dispatchers without dry_run defaults to False (production behavior)."""
+        with patch("premarket_report.main") as mock_main:
+            from scheduler import run_premarket
+            run_premarket()
+            mock_main.assert_called_once_with(dry_run=False)

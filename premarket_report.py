@@ -85,8 +85,14 @@ def _send_error_alert(config: dict, message: str):
         logger.error(f"Could not send error alert: {e}")
 
 
-def main(force: bool = False):
-    """Generate and send pre-market report."""
+def main(force: bool = False, dry_run: bool = False):
+    """Generate and send pre-market report.
+
+    Args:
+        force: Run even on non-trading days.
+        dry_run: Render the email locally to reports/premarket_<ts>_dryrun.html
+                 but do NOT send. SMTP is skipped entirely.
+    """
     logger.info("=" * 50)
     logger.info("Starting Pre-Market Report Generation")
     logger.info("=" * 50)
@@ -221,28 +227,32 @@ def main(force: bool = False):
             dashboard_url='http://localhost:3006',
         )
         
-        # Save a local copy for debugging
-        debug_path = f'reports/premarket_{datetime.now().strftime("%Y%m%d_%H%M")}.html'
+        # Save a local copy for debugging (suffix _dryrun makes the artifact obvious)
+        suffix = "_dryrun" if dry_run else ""
+        debug_path = f'reports/premarket_{datetime.now().strftime("%Y%m%d_%H%M")}{suffix}.html'
         os.makedirs('reports', exist_ok=True)
         with open(debug_path, 'w') as f:
             f.write(html_content)
         logger.info(f"Saved debug copy to {debug_path}")
-        
-        # Send email
-        recipient = email_config.get('recipient_email', email_config.get('sender_email'))
-        
-        if recipient and email_sender.sender_email and email_sender.sender_password:
-            logger.info(f"Sending email to {recipient}...")
-            success = email_sender.send_premarket_report(recipient, html_content)
-            
-            if success:
-                logger.info("✓ Pre-market report sent successfully!")
-            else:
-                logger.error("✗ Failed to send email")
+
+        # Send email (skipped entirely in dry-run mode)
+        if dry_run:
+            logger.info(f"DRY RUN — preview at {debug_path}, not sending email")
         else:
-            logger.warning("Email not configured. Report saved locally only.")
-            logger.info(f"View the report at: {debug_path}")
-        
+            recipient = email_config.get('recipient_email', email_config.get('sender_email'))
+
+            if recipient and email_sender.sender_email and email_sender.sender_password:
+                logger.info(f"Sending email to {recipient}...")
+                success = email_sender.send_premarket_report(recipient, html_content)
+
+                if success:
+                    logger.info("✓ Pre-market report sent successfully!")
+                else:
+                    logger.error("✗ Failed to send email")
+            else:
+                logger.warning("Email not configured. Report saved locally only.")
+                logger.info(f"View the report at: {debug_path}")
+
         logger.info("Pre-market report generation complete")
         
     except Exception as e:
@@ -253,5 +263,7 @@ def main(force: bool = False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Pre-Market Report Generator')
     parser.add_argument('--force', action='store_true', help='Run even on non-trading days')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Render preview to reports/premarket_<ts>_dryrun.html, do NOT send email')
     args = parser.parse_args()
-    main(force=args.force)
+    main(force=args.force, dry_run=args.dry_run)
