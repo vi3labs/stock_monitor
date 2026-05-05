@@ -100,10 +100,12 @@ class EmailSender:
             # Connect and send with retry logic for network failures
             last_error = None
             for attempt in range(MAX_RETRIES):
+                message_sent = False
                 try:
                     with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
                         server.starttls()
                         server.login(self.sender_email, self.sender_password)
+                        message_sent = True
                         server.send_message(msg)
 
                     logger.info(f"Email sent successfully to {recipient}")
@@ -119,7 +121,12 @@ class EmailSender:
                     return False
                 except (OSError, smtplib.SMTPServerDisconnected,
                         smtplib.SMTPConnectError, ConnectionError) as e:
-                    # Network errors - retry with backoff
+                    if message_sent:
+                        # send_message() already called — Gmail accepted it; connection dropped
+                        # reading the 250 OK. Don't retry or a duplicate will be delivered.
+                        logger.warning(f"Connection dropped after send (not retrying): {e}")
+                        return True
+                    # Network errors before send — retry with backoff
                     last_error = e
                     if attempt < MAX_RETRIES - 1:
                         delay = RETRY_DELAY_SECONDS * (2 ** attempt)
